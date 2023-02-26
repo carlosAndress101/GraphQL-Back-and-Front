@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "node --watch-path=./server  --watch server/index.js"
+    "dev": "node server/index.js"
   },
   "keywords": [],
   "author": "",
