@@ -12,7 +12,7 @@ export const GET_PROJECTS = gql`
 `;
 
 export const GET_PROJECT = gql`
-  query Project($id: ID!) {
+  query getProject($id: ID!) {
     project(_id: $id) {
       _id
       name
