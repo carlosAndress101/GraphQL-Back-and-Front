@@ -8,6 +8,7 @@ export async function startApolloServer(typeDefs, resolvers) {
   //server express
   const app = express();
   const httpServer = http.createServer(app);
+ 
 
   //configuracion de apollo
   const server = new ApolloServer({

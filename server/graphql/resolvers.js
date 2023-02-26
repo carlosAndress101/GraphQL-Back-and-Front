@@ -51,6 +51,35 @@ export const resolvers = {
             const deletedTask = await Task.findByIdAndDelete(_id);
             if(!deletedTask) throw new Error('Task not found for deletion');
             return deletedTask
+
+        },
+        updateProject: async (_, args) =>{
+            const updateProject =  await Project.findByIdAndUpdate(args._id, args, {
+                new: true,
+            });
+            if(!updateProject) throw new Error('Project not found for update');
+            return updateProject;
+        },
+        updateTask: async (_, args)=>{
+            const updateTask = await Task.findByIdAndUpdate(args._id, args, {
+                new: true,
+            });
+            if(!updateTask) throw new  Error('Task not found for update');
+            return updateTask;
+        }
+    },
+
+    //relacion de projecto con tareas
+    Project: {
+        tasks: async (parent) => {
+            return await Task.find({projectId: parent._id});
+        }
+    },
+    Task: {
+        project: async (parent) =>{
+            console.log(parent);
+            return await Project.findById(parent.projectId)
+
         }
     }
 };
