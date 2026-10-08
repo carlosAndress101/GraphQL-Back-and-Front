@@ -1,4 +1,11 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  infiniteQueryOptions,
+  queryOptions,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/react-query";
 import type {
   CreateProjectMutationVariables,
@@ -61,9 +68,13 @@ function patchProjectPages(
 }
 
 export function useProjects(search = "") {
+  return useInfiniteQuery(projectsQueryOptions(search));
+}
+
+export function projectsQueryOptions(search = "") {
   const normalizedSearch = search.trim();
 
-  return useInfiniteQuery({
+  return infiniteQueryOptions({
     queryKey: queryKeys.projects.list(normalizedSearch),
     initialPageParam: INITIAL_CURSOR,
     queryFn: ({ pageParam }) =>
@@ -73,14 +84,19 @@ export function useProjects(search = "") {
         search: normalizedSearch || undefined,
       }),
     getNextPageParam: (lastPage) => lastPage.projects.nextCursor ?? undefined,
+    staleTime: 30_000,
   });
 }
 
 export function useProject(projectId: string) {
-  return useQuery({
+  return useQuery({ ...projectQueryOptions(projectId), enabled: projectId.length > 0 });
+}
+
+export function projectQueryOptions(projectId: string) {
+  return queryOptions({
     queryKey: queryKeys.projects.detail(projectId),
     queryFn: () => request(ProjectDocument, { id: projectId }),
-    enabled: projectId.length > 0,
+    staleTime: 30_000,
   });
 }
 
