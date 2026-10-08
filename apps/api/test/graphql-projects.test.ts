@@ -114,6 +114,45 @@ function idFrom(json: unknown, field: string): string {
   return id;
 }
 
+async function signUp(
+  app: ReturnType<typeof setupApp>,
+  email: string,
+): Promise<{ cookie: string }> {
+  const signedUp = await graphql(app, {
+    query: `mutation { signUp(input: { email: "${email}", password: "${PASSWORD}" }) { id } }`,
+  });
+  expect(signedUp.status).toBe(200);
+  expect(signedUp.json).toMatchObject({ data: { signUp: { id: expect.any(String) } } });
+  return { cookie: `session=${sessionTokenFrom(signedUp.setCookies)}` };
+}
+
+function idsFromPage(json: unknown, field: string): string[] {
+  const items = record(dataField(json, field)).items;
+  if (!Array.isArray(items)) throw new Error(`expected ${field} items`);
+  return items.map((item) => {
+    const id = record(item).id;
+    if (typeof id !== "string") throw new Error(`expected ${field} item id`);
+    return id;
+  });
+}
+
+function nextCursorFromPage(json: unknown, field: string): string | null {
+  const nextCursor = record(dataField(json, field)).nextCursor;
+  if (nextCursor === null) return null;
+  if (typeof nextCursor !== "string") throw new Error(`expected ${field} next cursor`);
+  return nextCursor;
+}
+
+function expectErrorCode(json: unknown, code: string): void {
+  expect(json).toMatchObject({ errors: [{ extensions: { code } }] });
+}
+
+function expectFieldError(json: unknown, code: string, field: string): void {
+  expect(json).toMatchObject({
+    errors: [{ extensions: { code, fieldErrors: { [field]: expect.any(Array) } } }],
+  });
+}
+
 describe("project and task resolvers", () => {
   it("runs project and task operations through GraphQL and cascades project deletion", async () => {
     const app = setupApp();
@@ -243,5 +282,209 @@ describe("project and task resolvers", () => {
     expect(deletedProject.json).toMatchObject({ data: { deleteProject: projectId } });
     const remainingTasks = await database?.client.query("SELECT id FROM tasks");
     expect(remainingTasks?.rows).toHaveLength(0);
+  });
+
+  it("keeps project and task data private across users and rejects foreign mutations", async () => {
+    const app = setupApp();
+    const userA = await signUp(app, "ada@example.test");
+    const createdProject = await graphql(
+      app,
+      { query: 'mutation { createProject(input: { name: "A private project" }) { id } }' },
+      userA,
+    );
+    const projectId = idFrom(createdProject.json, "createProject");
+    const createdTask = await graphql(
+      app,
+      {
+        query: `mutation { createTask(input: { projectId: "${projectId}", title: "A private task" }) { id } }`,
+      },
+      userA,
+    );
+    const taskId = idFrom(createdTask.json, "createTask");
+    const userB = await signUp(app, "grace@example.test");
+    const bProject = await graphql(
+      app,
+      { query: 'mutation { createProject(input: { name: "B private project" }) { id } }' },
+      userB,
+    );
+    const bProjectId = idFrom(bProject.json, "createProject");
+    const bTask = await graphql(
+      app,
+      {
+        query: `mutation { createTask(input: { projectId: "${bProjectId}", title: "B private task" }) { id } }`,
+      },
+      userB,
+    );
+    const bTaskId = idFrom(bTask.json, "createTask");
+
+    const foreignProject = await graphql(
+      app,
+      {
+        query: `query { project(id: "${projectId}") { id name taskCounts { total } tasks { items { id title project { id name } } } } }`,
+      },
+      userB,
+    );
+    expect(foreignProject.json).toMatchObject({ data: { project: null } });
+    expect(JSON.stringify(foreignProject.json)).not.toContain("A private task");
+
+    const bProjects = await graphql(
+      app,
+      {
+        query:
+          "query { projects { items { id name tasks { items { id title project { id name } } } } } }",
+      },
+      userB,
+    );
+    expect(bProjects.json).toMatchObject({
+      data: {
+        projects: {
+          items: [
+            {
+              id: bProjectId,
+              name: "B private project",
+              tasks: {
+                items: [
+                  {
+                    id: bTaskId,
+                    title: "B private task",
+                    project: { id: bProjectId, name: "B private project" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    });
+    expect(JSON.stringify(bProjects.json)).not.toContain(projectId);
+    expect(JSON.stringify(bProjects.json)).not.toContain(taskId);
+
+    const forbiddenMutations = [
+      graphql(
+        app,
+        {
+          query: `mutation { updateProject(id: "${projectId}", input: { name: "Stolen" }) { id } }`,
+        },
+        userB,
+      ),
+      graphql(app, { query: `mutation { deleteProject(id: "${projectId}") }` }, userB),
+      graphql(
+        app,
+        {
+          query: `mutation { createTask(input: { projectId: "${projectId}", title: "Nope" }) { id } }`,
+        },
+        userB,
+      ),
+      graphql(
+        app,
+        { query: `mutation { updateTask(id: "${taskId}", input: { title: "Stolen" }) { id } }` },
+        userB,
+      ),
+      graphql(
+        app,
+        { query: `mutation { setTaskCompleted(id: "${taskId}", completed: false) { id } }` },
+        userB,
+      ),
+      graphql(app, { query: `mutation { deleteTask(id: "${taskId}") }` }, userB),
+    ];
+    for (const response of await Promise.all(forbiddenMutations)) {
+      expectErrorCode(response.json, "NOT_FOUND");
+    }
+  });
+
+  it("returns authentication and input errors with stable codes and field details", async () => {
+    const app = setupApp();
+    const unauthenticatedQueries = [
+      await graphql(app, { query: "query { projects { items { id } } }" }),
+      await graphql(app, {
+        query: 'query { project(id: "00000000-0000-4000-8000-000000000001") { id } }',
+      }),
+    ];
+    for (const response of unauthenticatedQueries) {
+      expectErrorCode(response.json, "UNAUTHENTICATED");
+    }
+
+    const unauthenticatedMutationQueries = [
+      'mutation { createProject(input: { name: "No user" }) { id } }',
+      'mutation { updateProject(id: "00000000-0000-4000-8000-000000000001", input: { name: "No user" }) { id } }',
+      'mutation { deleteProject(id: "00000000-0000-4000-8000-000000000001") }',
+      'mutation { createTask(input: { projectId: "00000000-0000-4000-8000-000000000001", title: "No user" }) { id } }',
+      'mutation { updateTask(id: "00000000-0000-4000-8000-000000000001", input: { title: "No user" }) { id } }',
+      'mutation { setTaskCompleted(id: "00000000-0000-4000-8000-000000000001", completed: true) { id } }',
+      'mutation { deleteTask(id: "00000000-0000-4000-8000-000000000001") }',
+    ];
+    for (const query of unauthenticatedMutationQueries) {
+      const response = await graphql(app, { query });
+      expectErrorCode(response.json, "UNAUTHENTICATED");
+    }
+
+    const { cookie } = await signUp(app, "ada@example.test");
+    const malformedId = await graphql(
+      app,
+      { query: 'query { project(id: "not-a-uuid") { id } }' },
+      { cookie },
+    );
+    expectFieldError(malformedId.json, "BAD_USER_INPUT", "input");
+
+    const badCursor = await graphql(
+      app,
+      { query: 'query { projects(first: 2, after: "not-a-cursor") { items { id } } }' },
+      { cookie },
+    );
+    expectFieldError(badCursor.json, "BAD_USER_INPUT", "after");
+
+    const tooManyItems = await graphql(
+      app,
+      { query: "query { projects(first: 101) { items { id } } }" },
+      { cookie },
+    );
+    expectFieldError(tooManyItems.json, "BAD_USER_INPUT", "first");
+
+    const explicitNullCursor = await graphql(
+      app,
+      { query: "query { projects(first: 2, after: null) { items { id } } }" },
+      { cookie },
+    );
+    expect(explicitNullCursor.json).toMatchObject({ data: { projects: { items: [] } } });
+  });
+
+  it("walks project pages in order without gaps or duplicate IDs", async () => {
+    const app = setupApp();
+    const { cookie } = await signUp(app, "ada@example.test");
+    const headers = { cookie };
+
+    for (const name of ["One", "Two", "Three", "Four", "Five"]) {
+      const created = await graphql(
+        app,
+        { query: `mutation { createProject(input: { name: "${name}" }) { id } }` },
+        headers,
+      );
+      expect(created.json).toMatchObject({ data: { createProject: { id: expect.any(String) } } });
+    }
+
+    const allProjects = await graphql(
+      app,
+      { query: "query { projects(first: 100, after: null) { items { id } } }" },
+      headers,
+    );
+    const expectedIds = idsFromPage(allProjects.json, "projects");
+    const pagedIds: string[] = [];
+    let after: string | null = null;
+
+    do {
+      const afterArgument = after === null ? "after: null" : `after: "${after}"`;
+      const page = await graphql(
+        app,
+        { query: `query { projects(first: 2, ${afterArgument}) { items { id } nextCursor } }` },
+        headers,
+      );
+      expect(page.json).toMatchObject({ data: { projects: { items: expect.any(Array) } } });
+      pagedIds.push(...idsFromPage(page.json, "projects"));
+      after = nextCursorFromPage(page.json, "projects");
+    } while (after !== null);
+
+    expect(pagedIds).toEqual(expectedIds);
+    expect(new Set(pagedIds).size).toBe(pagedIds.length);
+    expect(pagedIds).toHaveLength(5);
   });
 });
