@@ -5,6 +5,8 @@
     ".worktrees/**",
     "apps/web/**",
     "**/__generated__/**",
+    "**/routeTree.gen.ts",
+    "apps/web/src/gql/**",
     "**/migrations/**",
     "pnpm-lock.yaml"
   ]

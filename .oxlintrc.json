@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "import", "vitest"],
+  "plugins": ["react", "jsx-a11y", "typescript", "unicorn", "import", "vitest"],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
@@ -8,7 +8,15 @@
   "rules": {
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
-    "no-console": "error"
+    "no-console": "error",
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css", "-library/jest-dom/vitest"] }]
   },
-  "ignorePatterns": [".worktrees/**", "apps/web/**", "**/__generated__/**", "**/migrations/**"]
+  "ignorePatterns": [
+    ".worktrees/**",
+    "**/__generated__/**",
+    "**/routeTree.gen.ts",
+    "apps/web/src/gql/**",
+    "**/migrations/**"
+  ]
 }
