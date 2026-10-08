@@ -81,6 +81,9 @@ function ApplicationLayout() {
               onError: (error) => toast.error(error.message),
             })
           }
+          hasMore={projects.hasNextPage}
+          loadingMore={projects.isFetchingNextPage}
+          onLoadMore={() => void projects.fetchNextPage()}
           projects={projectItems}
           renderLink={(item, content) => (
             <Link

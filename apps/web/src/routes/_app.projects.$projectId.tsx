@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { Button } from "../components/ui/Button.tsx";
@@ -58,9 +58,9 @@ function ProjectDetailPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const toast = useToast();
-  const titleContainerRef = useRef<HTMLDivElement>(null);
 
   const currentFilter = search.filter ?? "all";
+  const autoEditTitle = search.edit === "title";
   const projectQuery = useProject(projectId);
   const project = projectQuery.data?.project;
   const completedFilter = completedFromFilter(currentFilter);
@@ -73,22 +73,19 @@ function ProjectDetailPage() {
   const deleteTask = useDeleteTask();
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const didAutoEdit = useRef(false);
 
   useEffect(() => {
-    if (didAutoEdit.current || search.edit !== "title") return;
-    didAutoEdit.current = true;
-    const trigger = titleContainerRef.current?.querySelector<HTMLButtonElement>(
-      'button[aria-label="Edit project name"]',
-    );
-    trigger?.click();
+    if (!autoEditTitle) return;
+    // Strips the one-shot `edit` flag once InlineEditable has picked up
+    // `defaultEditing` on mount; `autoEditTitle` becomes false right after,
+    // so this never re-fires for the same visit.
     void navigate({
       to: "/projects/$projectId",
       params: { projectId },
       search: { filter: search.filter },
       replace: true,
     });
-  }, [navigate, projectId, search.edit, search.filter]);
+  }, [autoEditTitle, navigate, projectId, search.filter]);
 
   function addTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -176,20 +173,19 @@ function ProjectDetailPage() {
 
       <PageHeader
         title={
-          <div ref={titleContainerRef}>
-            <InlineEditable
-              label="project name"
-              onSave={(name) => {
-                const trimmed = name.trim();
-                if (!trimmed || trimmed === project.name) return;
-                updateProject.mutate(
-                  { id: project.id, input: { name: trimmed } },
-                  { onError: (error) => toast.error(mutationErrorMessage(error)) },
-                );
-              }}
-              value={project.name}
-            />
-          </div>
+          <InlineEditable
+            defaultEditing={autoEditTitle}
+            label="project name"
+            onSave={(name) => {
+              const trimmed = name.trim();
+              if (!trimmed || trimmed === project.name) return;
+              updateProject.mutate(
+                { id: project.id, input: { name: trimmed } },
+                { onError: (error) => toast.error(mutationErrorMessage(error)) },
+              );
+            }}
+            value={project.name}
+          />
         }
       >
         <PropertyRow label="Progress">
