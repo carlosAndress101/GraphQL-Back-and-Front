@@ -5,40 +5,81 @@
  * No-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set, so tests, local dev and
  * builds without a collector pay nothing. The OTLP exporters read the same
  * variable for their URL (base + /v1/traces, /v1/metrics).
+ *
+ * The app is native ESM, so auto-instrumentation needs the import-in-the-middle
+ * loader hook. It is registered first and everything else is imported
+ * dynamically afterwards: an ESM namespace is frozen once loaded, so a module
+ * imported before the hook existed (e.g. `node:http` pulled in by an exporter)
+ * could never be patched.
+ *
+ * `server.ts` owns SIGTERM/SIGINT and calls `shutdownTelemetry()` after
+ * closing HTTP and the DB pool.
  */
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import { PgInstrumentation } from "@opentelemetry/instrumentation-pg";
-import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
-import { defaultResource, resourceFromAttributes } from "@opentelemetry/resources";
-import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import { register } from "node:module";
 
-function startTelemetry(): void {
-  if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT) return;
+type Telemetry = {
+  shutdown: () => Promise<void>;
+};
 
-  const sdk = new NodeSDK({
-    resource: defaultResource().merge(
-      resourceFromAttributes({ [ATTR_SERVICE_NAME]: "graphql-api" }),
-    ),
-    traceExporter: new OTLPTraceExporter(),
-    metricReaders: [new PeriodicExportingMetricReader({ exporter: new OTLPMetricExporter() })],
+let telemetry: Telemetry | undefined;
+
+async function startTelemetry(): Promise<void> {
+  if (telemetry) return;
+  register("@opentelemetry/instrumentation/hook.mjs", import.meta.url);
+
+  const { defaultResource, resourceFromAttributes } = await import("@opentelemetry/resources");
+  const { ATTR_SERVICE_NAME } = await import("@opentelemetry/semantic-conventions");
+  const { NodeTracerProvider, BatchSpanProcessor } = await import("@opentelemetry/sdk-trace-node");
+  const { OTLPTraceExporter } = await import("@opentelemetry/exporter-trace-otlp-http");
+  const { MeterProvider, PeriodicExportingMetricReader } =
+    await import("@opentelemetry/sdk-metrics");
+  const { OTLPMetricExporter } = await import("@opentelemetry/exporter-metrics-otlp-http");
+  const { registerInstrumentations } = await import("@opentelemetry/instrumentation");
+  const { HttpInstrumentation } = await import("@opentelemetry/instrumentation-http");
+  const { UndiciInstrumentation } = await import("@opentelemetry/instrumentation-undici");
+  const { PgInstrumentation } = await import("@opentelemetry/instrumentation-pg");
+  const { metrics } = await import("@opentelemetry/api");
+
+  const resource = defaultResource().merge(
+    resourceFromAttributes({ [ATTR_SERVICE_NAME]: "graphql-api" }),
+  );
+
+  const tracerProvider = new NodeTracerProvider({
+    resource,
+    spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
+  });
+  tracerProvider.register();
+
+  const meterProvider = new MeterProvider({
+    resource,
+    readers: [new PeriodicExportingMetricReader({ exporter: new OTLPMetricExporter() })],
+  });
+  metrics.setGlobalMeterProvider(meterProvider);
+
+  registerInstrumentations({
     instrumentations: [
       new HttpInstrumentation(),
       new UndiciInstrumentation(),
       new PgInstrumentation(),
     ],
   });
-  sdk.start();
 
-  // Flush spans/metrics before exit; server.ts owns the HTTP shutdown.
-  process.once("SIGTERM", () => {
-    sdk.shutdown().catch((error: unknown) => {
-      process.stderr.write(`telemetry shutdown failed: ${String(error)}\n`);
-    });
-  });
+  telemetry = {
+    shutdown: async () => {
+      await tracerProvider.shutdown();
+      await meterProvider.shutdown();
+    },
+  };
 }
 
-startTelemetry();
+/** Flushes traces and metrics. No-op when telemetry never started. */
+export async function shutdownTelemetry(): Promise<void> {
+  if (!telemetry) return;
+  const active = telemetry;
+  telemetry = undefined;
+  await active.shutdown();
+}
+
+if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+  await startTelemetry();
+}

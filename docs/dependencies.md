@@ -21,7 +21,8 @@ Old stack: Express 4.18, Apollo Server 4.3 (EOL), Mongoose 6.9, React 18, Vite 4
 | `drizzle-orm`                               | Type-safe SQL; schema is the source of truth                        |
 | `pg`                                        | PostgreSQL driver (Neon in dev/prod)                                |
 | `dataloader`                                | Per-request batching to prevent N+1                                 |
-| `@opentelemetry/sdk-node`                   | OpenTelemetry SDK bootstrap                                         |
+| `@opentelemetry/sdk-trace-node`             | Tracer provider + span processors (no auto-config)                  |
+| `@opentelemetry/instrumentation`            | `registerInstrumentations` + ESM loader hook                        |
 | `@opentelemetry/exporter-trace-otlp-http`   | OTLP trace exporter (HTTP)                                          |
 | `@opentelemetry/exporter-metrics-otlp-http` | OTLP metric exporter (HTTP)                                         |
 | `@opentelemetry/sdk-metrics`                | Metric reader                                                       |
@@ -66,4 +67,4 @@ pnpm --filter @app/api audit --prod --audit-level high --ignore GHSA-7mx3-vvmw-h
 
 ## Transitive note
 
-`@opentelemetry/sdk-node` pulls in gRPC exporter packages (`@grpc/grpc-js`, `protobufjs`) for environment-based auto-configuration. We only use the HTTP exporters. The gRPC packages are unused at runtime but present in the dependency tree.
+Tracing is wired from minimal building blocks (`NodeTracerProvider` + `BatchSpanProcessor`, `MeterProvider` + `PeriodicExportingMetricReader`, `registerInstrumentations`) instead of `@opentelemetry/sdk-node`, so no gRPC exporter packages (`@grpc/grpc-js`, `protobufjs`) enter the production dependency tree.
