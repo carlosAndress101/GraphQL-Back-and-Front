@@ -212,6 +212,17 @@ describe("project detail page", () => {
     expect(screen.queryByText("Audit current site content")).not.toBeInTheDocument();
   });
 
+  it("opens the title already in edit mode when navigated with ?edit=title, then strips the flag", async () => {
+    const { router } = renderApp("/projects/project-1?edit=title");
+
+    const titleField = await screen.findByRole("textbox", { name: "project name" });
+    expect(titleField).toHaveFocus();
+    expect(titleField).toHaveValue("Website redesign");
+
+    await waitFor(() => expect(router.state.location.search.edit).toBeUndefined());
+    expect(router.state.location.pathname).toBe("/projects/project-1");
+  });
+
   it("deletes a project through the confirm dialog, then navigates and toasts", async () => {
     stubDialog();
     const user = userEvent.setup();
