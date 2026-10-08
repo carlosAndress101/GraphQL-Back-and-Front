@@ -2,3 +2,5 @@ packages:
   - apps/*
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - graphql-yoga@5.24.4
