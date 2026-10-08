@@ -1,6 +1,6 @@
 # ADR 0001: PostgreSQL + Drizzle
 
-## Problem
+## Context
 
 The original stack used MongoDB with Mongoose 6 (unsupported). The domain is relational: users own projects, projects own tasks, and deletes must cascade. Mongoose had no foreign keys, no indexes on `projectId`, and a typo (`createAt`) that left timestamps null.
 
@@ -8,7 +8,7 @@ The original stack used MongoDB with Mongoose 6 (unsupported). The domain is rel
 
 PostgreSQL with Drizzle ORM. Schema is defined in TypeScript; migrations are versioned SQL.
 
-## Alternatives considered
+## Options
 
 - **Stay on MongoDB**: no referential integrity, no cascades, continued Mongoose risk.
 - **Prisma**: heavier runtime, less control over SQL, migration story is more opaque.
@@ -23,3 +23,7 @@ The domain is relational. Foreign keys with `ON DELETE CASCADE` eliminate orphan
 - Repositories are the only modules that import Drizzle.
 - Changing the database engine means rewriting repositories, not services.
 - Migrations are committed SQL; `drizzle-kit push` is forbidden.
+
+## Date
+
+2026-10-08

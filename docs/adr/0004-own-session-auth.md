@@ -1,6 +1,6 @@
 # ADR 0004: Own session auth
 
-## Problem
+## Context
 
 The original app had no authentication. Anyone could read or delete anything.
 
@@ -8,7 +8,7 @@ The original app had no authentication. Anyone could read or delete anything.
 
 Own sessions: a 32-byte random token in an `HttpOnly; Secure; SameSite=Lax; Path=/` cookie. Only the SHA-256 hash is stored. Passwords use `scrypt` (Node.js `crypto`).
 
-## Alternatives considered
+## Options
 
 - **JWT**: stateless, but revocation is hard and the token is larger.
 - **Third-party auth (Auth.js, Clerk)**: adds a dependency and hides the mechanics we want to learn.
@@ -23,3 +23,7 @@ Sessions are simple, revocable, and testable. Storing only the hash means a data
 - Session table with `id_hash` as primary key.
 - Cookie flags are fixed; `SameSite=Lax` works because the API and web are same-site.
 - Rotation on `signIn`, deletion on `signOut`.
+
+## Date
+
+2026-10-08

@@ -1,6 +1,6 @@
 # ADR 0008: Node 24 native type stripping
 
-## Problem
+## Context
 
 The API needs TypeScript, but a build step adds tooling, slows iteration, and creates a dist/ folder to manage.
 
@@ -8,7 +8,7 @@ The API needs TypeScript, but a build step adds tooling, slows iteration, and cr
 
 Run `.ts` files directly with Node 24's native type stripping. `tsc --noEmit` only type-checks. No `tsx`, no build.
 
-## Alternatives considered
+## Options
 
 - **tsx**: works, but adds a dependency and a loader.
 - **Build to dist/**: traditional, but unnecessary with native stripping.
@@ -24,3 +24,7 @@ Node 24 strips types natively. Relative imports use `.ts` extensions. The only c
 - `node --import ./src/instrumentation.ts src/server.ts` for production.
 - All relative imports must end in `.ts`.
 - `import type` for type-only imports (`verbatimModuleSyntax`).
+
+## Date
+
+2026-10-08

@@ -1,6 +1,6 @@
 # ADR 0006: Same-site deployment topology
 
-## Problem
+## Context
 
 The session cookie must be sent with credentialed requests. Cross-site cookies require `SameSite=None; Secure` and are increasingly blocked.
 
@@ -8,7 +8,7 @@ The session cookie must be sent with credentialed requests. Cross-site cookies r
 
 Deploy the API at `api.<domain>` (Dokploy + Cloudflare Tunnel) and the web at `app.<domain>` (Cloudflare Pages). Both are subdomains of the same registrable domain, so the cookie is first-party.
 
-## Alternatives considered
+## Options
 
 - **Separate domains**: would require `SameSite=None`, which browsers restrict.
 - **Same origin (path-based)**: possible, but splits routing between Pages and the tunnel is harder to operate.
@@ -23,3 +23,7 @@ Deploy the API at `api.<domain>` (Dokploy + Cloudflare Tunnel) and the web at `a
 - CORS allowlist is `https://app.<domain>` in production.
 - `TRUST_PROXY=cloudflare` so the API sees the real client IP from `CF-Connecting-IP`.
 - Deploy the API before the web (trusted documents).
+
+## Date
+
+2026-10-08

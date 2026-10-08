@@ -1,6 +1,6 @@
 # ADR 0005: React + TanStack over Astro
 
-## Problem
+## Context
 
 The frontend is an authenticated, fully interactive dashboard. There is no public content and no SEO requirement.
 
@@ -8,7 +8,7 @@ The frontend is an authenticated, fully interactive dashboard. There is no publi
 
 React 19 with TanStack Router and TanStack Query. Tailwind 4 for styling.
 
-## Alternatives considered
+## Options
 
 - **Astro**: excellent for content sites, but the dashboard is 100% interactive behind auth. Astro's island model adds complexity without benefit.
 - **Next.js**: heavier, and we do not need SSR or a server framework on the frontend.
@@ -23,3 +23,7 @@ TanStack Router gives type-safe, file-based routing with `beforeLoad` guards. Ta
 - No SSR. The web app is a static build deployed to Cloudflare Pages.
 - GraphQL operations are typed via the client preset (`TypedDocumentNode`).
 - Code-splitting happens per route.
+
+## Date
+
+2026-10-08
