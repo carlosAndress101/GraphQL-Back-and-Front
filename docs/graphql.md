@@ -18,8 +18,6 @@ Built per request: `{ viewer, services, cookies, clientIp, logger, requestId, lo
 
 N+1 is handled with per-request DataLoaders: `projectById` and `taskCountsByProjectId` (single `GROUP BY` query). The `queryCount` helper in tests asserts SQL statements per operation.
 
-TODO(round 3B): populate the loaders (creation lives with DEVELOPER 1's resolvers).
-
 ## Errors
 
 Stable codes in `extensions.code`:

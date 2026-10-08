@@ -86,6 +86,6 @@ apps/api/src/
 - **Health**: `/health/live` (always 200), `/health/ready` (DB ping).
 - **Observability**: OpenTelemetry traces + metrics via OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
 
-## TODO
+## Frontend
 
-- TODO(round 4–6): frontend architecture (TanStack Router, Query, design system).
+See [frontend.md](frontend.md): TanStack Router (file-based), TanStack Query, typed documents from graphql-codegen, semantic Tailwind tokens.

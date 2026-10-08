@@ -68,6 +68,4 @@ Redeploy the previous image tag. Migrations are forward-only SQL with no down pa
 
 Cloudflare Tunnel (`cloudflared`) routes `api.<domain>` to the Dokploy service. No public IP required.
 
-## TODO
-
-- TODO(round 5): exact tunnel and domain configuration once the domain is chosen.
+In the tunnel's public hostname, map `api.<domain>` to the API service's internal URL (port `PORT`, default 4000). Set `TRUST_PROXY=cloudflare` so rate limits use `CF-Connecting-IP`, and `CORS_ORIGINS=https://app.<domain>`.
