@@ -1,10 +1,17 @@
 import type { Resolvers } from "../__generated__/resolvers-types.ts";
 import { scalarResolvers } from "../scalars.ts";
 import { authMutationResolvers, authQueryResolvers } from "./auth.ts";
+import {
+  projectFieldResolvers,
+  projectMutationResolvers,
+  projectQueryResolvers,
+} from "./projects.ts";
+import { taskFieldResolvers, taskMutationResolvers } from "./tasks.ts";
 
-// DEVELOPER 1 (round 3B) adds projects.ts/tasks.ts maps here.
 export const resolvers: Resolvers = {
   ...scalarResolvers,
-  Query: { ...authQueryResolvers },
-  Mutation: { ...authMutationResolvers },
+  Query: { ...authQueryResolvers, ...projectQueryResolvers },
+  Mutation: { ...authMutationResolvers, ...projectMutationResolvers, ...taskMutationResolvers },
+  Project: projectFieldResolvers,
+  Task: taskFieldResolvers,
 };
