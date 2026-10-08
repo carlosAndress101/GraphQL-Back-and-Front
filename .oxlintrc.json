@@ -10,5 +10,5 @@
     "typescript/no-non-null-assertion": "error",
     "no-console": "error"
   },
-  "ignorePatterns": ["apps/web/**", "**/__generated__/**", "**/migrations/**"]
+  "ignorePatterns": [".worktrees/**", "apps/web/**", "**/__generated__/**", "**/migrations/**"]
 }

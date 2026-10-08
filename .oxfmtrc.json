@@ -1,5 +1,11 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 100,
-  "ignorePatterns": ["apps/web/**", "**/__generated__/**", "**/migrations/**", "pnpm-lock.yaml"]
+  "ignorePatterns": [
+    ".worktrees/**",
+    "apps/web/**",
+    "**/__generated__/**",
+    "**/migrations/**",
+    "pnpm-lock.yaml"
+  ]
 }
