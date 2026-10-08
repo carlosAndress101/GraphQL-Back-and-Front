@@ -1,0 +1,13 @@
+# Build context = repo root (docker build -f apps/api/Dockerfile .)
+**/node_modules
+.git
+**/.env
+**/.env.*
+!**/.env.example
+**/dist
+**/coverage
+**/*.tsbuildinfo
+.worktrees
+.github
+docs
+**/*.log
