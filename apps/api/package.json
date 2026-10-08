@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:migrate:prod": "node src/migrate.ts"
+    "db:migrate:prod": "node src/migrate.ts",
+    "codegen": "graphql-codegen"
   },
   "dependencies": {
     "@envelop/opentelemetry": "^9.2.2",
@@ -40,6 +41,9 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@graphql-codegen/cli": "^7.4.5",
+    "@graphql-codegen/typescript": "^6.1.1",
+    "@graphql-codegen/typescript-resolvers": "^6.1.1",
     "@types/node": "^24.19.1",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
