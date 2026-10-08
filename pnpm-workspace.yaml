@@ -2,3 +2,8 @@ packages:
   - apps/*
 allowBuilds:
   esbuild: true
+# Temporary, orchestrator-approved: the official Yoga plugins require
+# graphql-yoga ^5.24.4, released days ago. Remove once 5.24.4 passes the
+# release-age gate. No other exclusions.
+minimumReleaseAgeExclude:
+  - graphql-yoga@5.24.4

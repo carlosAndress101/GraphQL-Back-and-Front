@@ -11,27 +11,32 @@ Old stack: Express 4.18, Apollo Server 4.3 (EOL), Mongoose 6.9, React 18, Vite 4
 
 ## New stack
 
-| Package                                     | Why                                                                 |
-| ------------------------------------------- | ------------------------------------------------------------------- |
-| `hono`                                      | HTTP framework; Fetch-native, built-in cors/secureHeaders/bodyLimit |
-| `@hono/node-server`                         | Node.js adapter for Hono                                            |
-| `graphql`                                   | GraphQL execution                                                   |
-| `graphql-yoga`                              | GraphQL server; error masking, CSRF, plugins                        |
-| `zod`                                       | Runtime validation; env and input schemas                           |
-| `drizzle-orm`                               | Type-safe SQL; schema is the source of truth                        |
-| `pg`                                        | PostgreSQL driver (Neon in dev/prod)                                |
-| `dataloader`                                | Per-request batching to prevent N+1                                 |
-| `@opentelemetry/sdk-trace-node`             | Tracer provider + span processors (no auto-config)                  |
-| `@opentelemetry/instrumentation`            | `registerInstrumentations` + ESM loader hook                        |
-| `@opentelemetry/exporter-trace-otlp-http`   | OTLP trace exporter (HTTP)                                          |
-| `@opentelemetry/exporter-metrics-otlp-http` | OTLP metric exporter (HTTP)                                         |
-| `@opentelemetry/sdk-metrics`                | Metric reader                                                       |
-| `@opentelemetry/resources`                  | Resource attributes (service.name)                                  |
-| `@opentelemetry/semantic-conventions`       | Standard attribute names                                            |
-| `@opentelemetry/instrumentation-http`       | HTTP server/client spans                                            |
-| `@opentelemetry/instrumentation-undici`     | fetch/undici spans                                                  |
-| `@opentelemetry/instrumentation-pg`         | PostgreSQL query spans                                              |
-| `@opentelemetry/api`                        | OpenTelemetry API (peer of instrumentations)                        |
+| Package                                      | Why                                                                                    |
+| -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `hono`                                       | HTTP framework; Fetch-native, built-in cors/secureHeaders/bodyLimit                    |
+| `@hono/node-server`                          | Node.js adapter for Hono                                                               |
+| `graphql`                                    | GraphQL execution; pinned to 16.x because graphql-armor requires graphql 16 (ADR 0010) |
+| `graphql-yoga`                               | GraphQL server; error masking, CSRF, plugins                                           |
+| `zod`                                        | Runtime validation; env and input schemas                                              |
+| `drizzle-orm`                                | Type-safe SQL; schema is the source of truth                                           |
+| `pg`                                         | PostgreSQL driver (Neon in dev/prod)                                                   |
+| `dataloader`                                 | Per-request batching to prevent N+1                                                    |
+| `@opentelemetry/sdk-trace-node`              | Tracer provider + span processors (no auto-config)                                     |
+| `@opentelemetry/instrumentation`             | `registerInstrumentations` + ESM loader hook                                           |
+| `@opentelemetry/exporter-trace-otlp-http`    | OTLP trace exporter (HTTP)                                                             |
+| `@opentelemetry/exporter-metrics-otlp-http`  | OTLP metric exporter (HTTP)                                                            |
+| `@opentelemetry/sdk-metrics`                 | Metric reader                                                                          |
+| `@opentelemetry/resources`                   | Resource attributes (service.name)                                                     |
+| `@opentelemetry/semantic-conventions`        | Standard attribute names                                                               |
+| `@opentelemetry/instrumentation-http`        | HTTP server/client spans                                                               |
+| `@opentelemetry/instrumentation-undici`      | fetch/undici spans                                                                     |
+| `@opentelemetry/instrumentation-pg`          | PostgreSQL query spans                                                                 |
+| `@opentelemetry/api`                         | OpenTelemetry API (peer of instrumentations)                                           |
+| `@escape.tech/graphql-armor`                 | Query depth/alias/directive/token/cost limits + suggestion blocking                    |
+| `@graphql-yoga/plugin-csrf-prevention`       | CSRF header requirement                                                                |
+| `@graphql-yoga/plugin-disable-introspection` | Introspection off in production                                                        |
+| `@graphql-yoga/plugin-persisted-operations`  | Trusted documents in production                                                        |
+| `@envelop/opentelemetry`                     | GraphQL spans (enabled with telemetry)                                                 |
 
 ### Dev dependencies
 
@@ -58,12 +63,16 @@ Old stack: Express 4.18, Apollo Server 4.3 (EOL), Mongoose 6.9, React 18, Vite 4
 CI audits only `@app/api` production dependencies at `high` severity:
 
 ```sh
-pnpm --filter @app/api audit --prod --audit-level high --ignore GHSA-7mx3-vvmw-hjmv
+pnpm --filter @app/api audit --prod --audit-level high
 ```
 
 `apps/web` stays on the legacy stack until the phase 4 rewrite. Its known advisories must not block CI.
 
-`GHSA-7mx3-vvmw-hjmv` is a transitive advisory in `@graphql-tools/utils` (via `graphql-yoga`). It is ignored until the upstream fix lands in a graphql-yoga release we can adopt.
+`GHSA-7mx3-vvmw-hjmv` (`@graphql-tools/utils` prototype pollution) cleared itself: the graphql-16 tree resolved utils to 12.0.3 (patched), so the CI `--ignore` flag was removed. Remaining below the gate (moderate, tracked): two react-router advisories via GraphiQL and one OpenTelemetry baggage advisory.
+
+## Release-age exception
+
+`pnpm-workspace.yaml` carries one narrow exception: `minimumReleaseAgeExclude: graphql-yoga@5.24.4`. The official Yoga plugins require `graphql-yoga ^5.24.4`, which was days old when adopted. Temporary — remove once 5.24.4 passes the age gate. No other exclusions.
 
 ## Transitive note
 
