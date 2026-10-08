@@ -3,7 +3,11 @@ import { AppError } from "../src/lib/errors.ts";
 import { createProjectRepository } from "../src/modules/projects/project.repository.ts";
 import { createTaskRepository } from "../src/modules/tasks/task.repository.ts";
 import { createTaskService } from "../src/modules/tasks/task.service.ts";
-import { CreateTaskInputSchema, TaskListArgsSchema } from "../src/modules/tasks/task.schema.ts";
+import {
+  CreateTaskInputSchema,
+  TaskListArgsSchema,
+  UpdateTaskInputSchema,
+} from "../src/modules/tasks/task.schema.ts";
 import { createUserRepository } from "../src/modules/users/user.repository.ts";
 import { createTestDatabase, type TestDatabase } from "./database.ts";
 
@@ -44,6 +48,23 @@ describe("task schemas", () => {
       title: "Parse source",
     });
     expect(TaskListArgsSchema.parse({})).toEqual({ first: 20 });
+    const omittedArgs = TaskListArgsSchema.parse({});
+    const nullArgs = TaskListArgsSchema.parse({ first: null, after: null, completed: null });
+    expect([nullArgs.first, nullArgs.after, nullArgs.completed]).toEqual([
+      omittedArgs.first,
+      omittedArgs.after,
+      omittedArgs.completed,
+    ]);
+    expect(TaskListArgsSchema.parse({ first: null }).first).toBe(20);
+  });
+
+  it("normalizes optional update fields and rejects empty updates with a clear message", () => {
+    expect(() => UpdateTaskInputSchema.parse({})).toThrowError(
+      "Provide at least one field to update",
+    );
+    expect(() => UpdateTaskInputSchema.parse({ title: null })).toThrowError(
+      "Provide at least one field to update",
+    );
   });
 
   it("enforces title and pagination boundaries", () => {
@@ -108,6 +129,12 @@ describe("task service", () => {
       code: "BAD_USER_INPUT",
     });
     await expect(service.listByProject(user, project.id, {})).resolves.toMatchObject({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(
+      service.listByProject(user, project.id, { first: null, after: null, completed: null }),
+    ).resolves.toMatchObject({
       items: [],
       nextCursor: null,
     });
