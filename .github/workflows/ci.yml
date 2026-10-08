@@ -15,15 +15,20 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Fail if GraphQL operations changed without regenerating the manifest
+      # the API image ships (apps/web/src/gql is committed by codegen).
+      - name: Check persisted documents are in sync
+        run: pnpm --filter @app/web codegen && git diff --exit-code apps/web/src/gql
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm fmt:check
       - run: pnpm test
-      # Audit only the new API's production dependencies at high severity.
-      # apps/web stays on the legacy stack until the phase 4 rewrite and its
-      # known advisories must not block CI (see docs/dependencies.md).
+      # Audit production dependencies at high severity. Both apps ship to
+      # production now (API on Dokploy, web on Cloudflare Pages).
       - name: Audit API production dependencies
         run: pnpm --filter @app/api audit --prod --audit-level high
+      - name: Audit web production dependencies
+        run: pnpm --filter @app/web audit --prod --audit-level high
 
   docker:
     runs-on: ubuntu-latest
