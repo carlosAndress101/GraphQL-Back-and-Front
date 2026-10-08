@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { httpSecurity } from "../src/http/security.ts";
 
-const testEnv: { CORS_ORIGINS: string[]; NODE_ENV: "test" } = {
+const testEnv: { CORS_ORIGINS: string[]; NODE_ENV: "test"; TRUST_PROXY: "none" } = {
   CORS_ORIGINS: ["http://localhost:5173"],
   NODE_ENV: "test",
+  TRUST_PROXY: "none",
 };
 
 function testApp() {

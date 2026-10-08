@@ -61,6 +61,9 @@ async function main(): Promise<void> {
     logger,
     persistedDocuments,
     telemetryEnabled: env.OTEL_EXPORTER_OTLP_ENDPOINT !== undefined,
+    // General per-IP throttle for /graphql: 300 requests/minute. Auth endpoints
+    // have their own stricter budgets inside the auth service.
+    graphqlLimiter: createRateLimiter({ limit: 300, windowMs: MINUTE_MS }),
   });
 
   const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {

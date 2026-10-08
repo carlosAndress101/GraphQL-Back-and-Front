@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { getConnInfo } from "@hono/node-server/conninfo";
 import { createSchema, createYoga } from "graphql-yoga";
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { createGraphQLContext, type GraphQLContext } from "./graphql/context.ts";
 import type { ProjectService, TaskService } from "./graphql/context.ts";
@@ -11,11 +10,12 @@ import { createLoaders } from "./graphql/loaders.ts";
 import { resolvers } from "./graphql/resolvers/index.ts";
 import { graphqlSecurityPlugins, type PersistedDocuments } from "./graphql/security.ts";
 import { createHealthRoutes } from "./http/health.ts";
-import { httpSecurity } from "./http/security.ts";
+import { httpSecurity, socketAddress } from "./http/security.ts";
 import type { Env } from "./infrastructure/config/env.ts";
 import type { createDatabaseClient } from "./infrastructure/database/client.ts";
 import type { Logger } from "./infrastructure/logging/logger.ts";
 import { getClientIp } from "./lib/client-ip.ts";
+import type { RateLimiter } from "./lib/rate-limit.ts";
 import type { AuthService } from "./modules/auth/auth.service.ts";
 import { sessionCookie } from "./modules/auth/session-cookie.ts";
 
@@ -26,16 +26,8 @@ export type AppDeps = {
   logger: Logger;
   persistedDocuments?: PersistedDocuments;
   telemetryEnabled: boolean;
+  graphqlLimiter: RateLimiter;
 };
-
-/** Socket address is best-effort: absent under app.request() and non-Node runtimes. */
-function socketAddress(c: Context): string | undefined {
-  try {
-    return getConnInfo(c).remote.address;
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * Builds the Hono app. Pure: no env or process reads (everything arrives via
@@ -63,7 +55,7 @@ export function createApp(deps: AppDeps): Hono {
 
   const app = new Hono();
   app.route("/", createHealthRoutes({ checkDatabase: () => db.ping() }));
-  app.use("/graphql", ...httpSecurity(env));
+  app.use("/graphql", ...httpSecurity(env, { graphqlLimiter: deps.graphqlLimiter }));
   app.all("/graphql", async (c) => {
     const start = Date.now();
     const requestId = randomUUID();

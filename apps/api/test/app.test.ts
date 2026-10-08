@@ -38,7 +38,11 @@ afterEach(async () => {
   }
 });
 
-function setupApp(override?: { db: TestDatabase["db"] }) {
+function setupApp(override?: {
+  db?: TestDatabase["db"];
+  graphqlLimit?: number;
+  trustProxy?: Env["TRUST_PROXY"];
+}) {
   const db = override?.db ?? database?.db;
   if (!db) throw new Error("Test database has not been initialized");
   const users = createUserRepository(db);
@@ -59,7 +63,7 @@ function setupApp(override?: { db: TestDatabase["db"] }) {
     tasks: createTaskService({ tasks: taskRecords }),
   };
   const app = createApp({
-    env: testEnv,
+    env: { ...testEnv, TRUST_PROXY: override?.trustProxy ?? testEnv.TRUST_PROXY },
     db: {
       ping: async () => {
         await db.execute("SELECT 1");
@@ -69,6 +73,10 @@ function setupApp(override?: { db: TestDatabase["db"] }) {
     logger: createLogger({ level: "error", write: () => {} }),
     persistedDocuments: undefined,
     telemetryEnabled: false,
+    graphqlLimiter: createRateLimiter({
+      limit: override?.graphqlLimit ?? 1000,
+      windowMs: 60_000,
+    }),
   });
   return { app, services };
 }
@@ -179,5 +187,52 @@ describe("app", () => {
       errors: [{ message: "Unexpected error", extensions: { code: "INTERNAL_SERVER_ERROR" } }],
     });
     expect(JSON.stringify(json)).not.toContain("password");
+  });
+});
+
+function headersFor(ip: string): Record<string, string> {
+  return { "content-type": "application/json", "cf-connecting-ip": ip };
+}
+
+describe("graphql rate limit", () => {
+  const ME = { query: "{ me { id } }" };
+
+  it("returns 429 with Retry-After after the limit", async () => {
+    const { app } = setupApp({ graphqlLimit: 2 });
+    expect((await graphql(app, ME)).status).toBe(200);
+    expect((await graphql(app, ME)).status).toBe(200);
+    const blocked = await graphql(app, ME);
+    expect(blocked.status).toBe(429);
+    const res = await app.request("http://localhost/graphql", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(ME),
+    });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: "Too many requests" });
+    expect(Number(res.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
+  });
+
+  it("tracks IPs independently", async () => {
+    const { app } = setupApp({ graphqlLimit: 1, trustProxy: "cloudflare" });
+    expect((await graphql(app, ME, headersFor("1.1.1.1"))).status).toBe(200);
+    expect((await graphql(app, ME, headersFor("1.1.1.1"))).status).toBe(429);
+    expect((await graphql(app, ME, headersFor("2.2.2.2"))).status).toBe(200);
+  });
+
+  it("does not count preflight OPTIONS", async () => {
+    const { app } = setupApp({ graphqlLimit: 2 });
+    const preflight = {
+      method: "OPTIONS",
+      headers: {
+        origin: "http://localhost:5173",
+        "access-control-request-method": "POST",
+      },
+    };
+    expect((await app.request("http://localhost/graphql", preflight)).status).toBe(204);
+    expect((await app.request("http://localhost/graphql", preflight)).status).toBe(204);
+    expect((await graphql(app, ME)).status).toBe(200);
+    expect((await graphql(app, ME)).status).toBe(200);
+    expect((await graphql(app, ME)).status).toBe(429);
   });
 });
