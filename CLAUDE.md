@@ -22,8 +22,8 @@ pnpm fmt / pnpm fmt:check
 pnpm test                # vitest in every app
 pnpm codegen             # api resolver types + web typed documents/persisted manifest
 
-pnpm --filter @app/api test -- test/graphql-projects.test.ts   # one file
-pnpm --filter @app/api test -- -t "rejects duplicate emails"    # one test by name
+pnpm --filter @app/api exec vitest run test/graphql-projects.test.ts   # one file
+pnpm --filter @app/api exec vitest run -t "rejects duplicate emails" # one test by name
 pnpm --filter @app/api db:generate    # SQL migration from schema.ts (never `push`)
 pnpm --filter @app/api db:migrate     # apply to DATABASE_URL (Neon dev branch)
 VITE_API_URL=http://localhost:4000/graphql pnpm --filter @app/web build
