@@ -47,7 +47,7 @@ The container migrates before serving on every start (`db:migrate:prod` runs the
 
 - Build command: `pnpm --filter @app/web build` (typecheck + Vite + Pages file generation).
 - Output directory: `apps/web/dist`.
-- `VITE_API_URL`: required in production builds (must be `https:`); baked into the `_headers` CSP `connect-src` at build time. Local builds fall back to `http://localhost:4000`.
+- `VITE_API_URL`: required at build time — the build fails without it, so a misconfigured deploy can never silently point at localhost. Must be `https:` except `http://localhost`/`http://127.0.0.1` for local builds; baked into the `_headers` CSP `connect-src`.
 - Custom domain: `app.<domain>`.
 - `_headers` and `_redirects` are generated at build time by `apps/web/scripts/write-pages-files.ts`: strict CSP (no `unsafe-inline` — the build emits no inline scripts/styles), HSTS, nosniff, referrer and permissions policies, same-origin opener, immutable caching for `/assets/*`, `no-cache` for `/index.html`, SPA fallback `/* /index.html 200`.
 

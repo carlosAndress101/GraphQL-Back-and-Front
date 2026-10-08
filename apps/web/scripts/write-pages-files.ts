@@ -1,27 +1,25 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export type PagesFiles = {
   headers: string;
   redirects: string;
 };
 
-const LOCAL_API_URL = "http://localhost:4000";
-
 /**
- * Resolves the API origin for the build. Production builds require
- * VITE_API_URL to be an absolute https URL and fail otherwise; anything else
- * falls back to local development (http://localhost allowed).
+ * Resolves the API origin for the build. VITE_API_URL is always required —
+ * a build must never silently fall back to localhost (Cloudflare Pages does
+ * not set NODE_ENV, so environment sniffing can't tell prod from dev).
+ * https is mandatory except for local loopback hosts, so local
+ * `pnpm build` + preview keeps working.
  */
 export function resolveApiUrl(env: Record<string, string | undefined>): string {
-  const production = env["NODE_ENV"] === "production";
   const raw = env["VITE_API_URL"];
   if (!raw) {
-    if (production) {
-      throw new Error("VITE_API_URL is required for production builds");
-    }
-    return LOCAL_API_URL;
+    throw new Error(
+      "VITE_API_URL is required to build the web app (https://api.<domain> in production, http://localhost:4000 for local builds)",
+    );
   }
   let url: URL;
   try {
@@ -29,8 +27,9 @@ export function resolveApiUrl(env: Record<string, string | undefined>): string {
   } catch {
     throw new Error(`VITE_API_URL is not an absolute URL: ${raw}`);
   }
-  if (production && url.protocol !== "https:") {
-    throw new Error(`VITE_API_URL must use https in production builds: ${raw}`);
+  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (!loopback && url.protocol !== "https:") {
+    throw new Error(`VITE_API_URL must use https (except http://localhost for local builds): ${raw}`);
   }
   return url.origin;
 }
@@ -79,4 +78,7 @@ function main(): void {
   process.stdout.write(`pages files written for ${apiUrl}\n`);
 }
 
-main();
+const entrypoint = process.argv[1];
+if (entrypoint !== undefined && import.meta.url === pathToFileURL(entrypoint).href) {
+  main();
+}

@@ -21,22 +21,23 @@ describe("buildPagesFiles", () => {
 });
 
 describe("resolveApiUrl", () => {
-  it("requires an https URL in production", () => {
-    expect(resolveApiUrl({ NODE_ENV: "production", VITE_API_URL: "https://api.example.com" })).toBe(
+  it("requires VITE_API_URL and absolute URLs", () => {
+    expect(resolveApiUrl({ VITE_API_URL: "https://api.example.com" })).toBe(
       "https://api.example.com",
     );
-    expect(() =>
-      resolveApiUrl({ NODE_ENV: "production", VITE_API_URL: "http://localhost:4000" }),
-    ).toThrow("https");
-    expect(() => resolveApiUrl({ NODE_ENV: "production" })).toThrow("VITE_API_URL is required");
-    expect(() => resolveApiUrl({ NODE_ENV: "production", VITE_API_URL: "not-a-url" })).toThrow(
-      "absolute URL",
-    );
+    expect(() => resolveApiUrl({})).toThrow("VITE_API_URL is required");
+    expect(() => resolveApiUrl({ VITE_API_URL: "" })).toThrow("VITE_API_URL is required");
+    expect(() => resolveApiUrl({ VITE_API_URL: "not-a-url" })).toThrow("absolute URL");
   });
 
-  it("falls back to localhost outside production", () => {
-    expect(resolveApiUrl({})).toBe("http://localhost:4000");
-    expect(resolveApiUrl({ VITE_API_URL: "http://localhost:4000" })).toBe("http://localhost:4000");
+  it("requires https except for loopback hosts", () => {
+    expect(resolveApiUrl({ VITE_API_URL: "http://localhost:4000" })).toBe(
+      "http://localhost:4000",
+    );
+    expect(resolveApiUrl({ VITE_API_URL: "http://127.0.0.1:4000/graphql" })).toBe(
+      "http://127.0.0.1:4000",
+    );
+    expect(() => resolveApiUrl({ VITE_API_URL: "http://api.example.com" })).toThrow("https");
   });
 
   it("strips paths down to the origin", () => {
