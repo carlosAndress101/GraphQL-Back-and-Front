@@ -25,7 +25,7 @@ Validated at startup by `apps/api/src/infrastructure/config/env.ts`. The process
 
 ## Notes
 
-- `DATABASE_URL` must include `sslmode=require` for Neon.
+- `DATABASE_URL` must use TLS for Neon. Prefer `sslmode=verify-full` (verified against Neon): `pg` currently treats `require` as `verify-full` but warns that `require` will switch to weaker libpq semantics in its next major version.
 - `OTEL_EXPORTER_OTLP_ENDPOINT` is optional. When set, traces and metrics are exported via OTLP/HTTP. The exporters append `/v1/traces` and `/v1/metrics` automatically.
 - `PERSISTED_DOCUMENTS_PATH` is required when `NODE_ENV=production` (trusted documents); the server fails fast at startup if it is missing or invalid. The manifest itself is generated in phase 4; deploy the API before the web.
 - `TRUST_PROXY=cloudflare` is required when the API sits behind Cloudflare Tunnel so rate limiting sees the real client IP.
