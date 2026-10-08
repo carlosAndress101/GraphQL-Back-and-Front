@@ -43,7 +43,3 @@ Verify:
 curl http://localhost:4000/health/live
 curl http://localhost:4000/health/ready
 ```
-
-## TODO
-
-- TODO(round 1): exact migration command output once Dev1 lands the migration files.

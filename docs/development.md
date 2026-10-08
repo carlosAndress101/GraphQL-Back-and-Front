@@ -4,20 +4,20 @@
 
 All commands use pnpm. Run from the repo root unless noted.
 
-| Command                                      | What it does                                    |
-| -------------------------------------------- | ----------------------------------------------- |
-| `pnpm dev`                                   | Starts API (watch) and web (legacy) in parallel |
-| `pnpm --filter @app/api dev`                 | API only, with `node --watch`                   |
-| `pnpm typecheck`                             | `tsc --noEmit` across workspaces                |
-| `pnpm lint`                                  | oxlint                                          |
-| `pnpm fmt`                                   | oxfmt (write)                                   |
-| `pnpm fmt:check`                             | oxfmt (check only)                              |
-| `pnpm test`                                  | vitest across workspaces                        |
-| `pnpm --filter @app/api test`                | API tests only                                  |
-| `pnpm --filter @app/api codegen`            | Regenerate GraphQL resolver types (commit them) |
-| `pnpm --filter @app/api db:generate`         | Generate a Drizzle migration                    |
-| `pnpm --filter @app/api db:migrate`          | Apply migrations locally                       |
-| `pnpm --filter @app/api db:migrate:prod`     | Apply migrations like production does           |
+| Command                                  | What it does                                    |
+| ---------------------------------------- | ----------------------------------------------- |
+| `pnpm dev`                               | Starts API (watch) and web (legacy) in parallel |
+| `pnpm --filter @app/api dev`             | API only, with `node --watch`                   |
+| `pnpm typecheck`                         | `tsc --noEmit` across workspaces                |
+| `pnpm lint`                              | oxlint                                          |
+| `pnpm fmt`                               | oxfmt (write)                                   |
+| `pnpm fmt:check`                         | oxfmt (check only)                              |
+| `pnpm test`                              | vitest across workspaces                        |
+| `pnpm --filter @app/api test`            | API tests only                                  |
+| `pnpm --filter @app/api codegen`         | Regenerate GraphQL resolver types (commit them) |
+| `pnpm --filter @app/api db:generate`     | Generate a Drizzle migration                    |
+| `pnpm --filter @app/api db:migrate`      | Apply migrations locally                        |
+| `pnpm --filter @app/api db:migrate:prod` | Apply migrations like production does           |
 
 ## Neon dev-branch workflow
 

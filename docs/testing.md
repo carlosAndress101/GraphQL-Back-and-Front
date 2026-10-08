@@ -47,16 +47,16 @@ expect(res.status).toBe(200);
 
 ## Test map
 
-| File(s) | Protects |
-|---|---|
-| `app.test.ts` | Composition: auth flows, cookie flags, CSRF/CORS, health, masking, general rate limit |
-| `graphql-security.test.ts`, `http-security.test.ts` | CSRF, introspection, persisted ops, armor limits, `maskError`, CORS/headers/body-limit/cache |
-| `auth.service.test.ts` (+ PGlite) | Signup/signin/signout, rotation, sliding expiry, rate limits, identical auth errors, no cleartext tokens |
-| `password`, `session-token`, `auth.schema`, `session-cookie` tests | Hashing/verify/params, token shape/SHA-256, validation + normalization, cookie contract |
-| `rate-limit`, `client-ip`, `cursor` tests | Window/keys/pruning, proxy trust, cursor encode/decode |
-| `project/task.service.test.ts`, `*.repository.test.ts`, `user-session.repository.test.ts` | Business rules, authz, ownership, cascades, pagination, N+1 counts |
-| `database.test.ts`, `domain-types.typecheck.ts` | Migration smoke + query counting; Drizzle rows fit domain types (compile-time) |
-| `logger`, `health`, `instrumentation`, `scalars`, `errors` tests | Redaction/levels, liveness/readiness, ESM OTel spans, DateTime, `parseInput` shaping |
+| File(s)                                                                                   | Protects                                                                                                 |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `app.test.ts`                                                                             | Composition: auth flows, cookie flags, CSRF/CORS, health, masking, general rate limit                    |
+| `graphql-security.test.ts`, `http-security.test.ts`                                       | CSRF, introspection, persisted ops, armor limits, `maskError`, CORS/headers/body-limit/cache             |
+| `auth.service.test.ts` (+ PGlite)                                                         | Signup/signin/signout, rotation, sliding expiry, rate limits, identical auth errors, no cleartext tokens |
+| `password`, `session-token`, `auth.schema`, `session-cookie` tests                        | Hashing/verify/params, token shape/SHA-256, validation + normalization, cookie contract                  |
+| `rate-limit`, `client-ip`, `cursor` tests                                                 | Window/keys/pruning, proxy trust, cursor encode/decode                                                   |
+| `project/task.service.test.ts`, `*.repository.test.ts`, `user-session.repository.test.ts` | Business rules, authz, ownership, cascades, pagination, N+1 counts                                       |
+| `database.test.ts`, `domain-types.typecheck.ts`                                           | Migration smoke + query counting; Drizzle rows fit domain types (compile-time)                           |
+| `logger`, `health`, `instrumentation`, `scalars`, `errors` tests                          | Redaction/levels, liveness/readiness, ESM OTel spans, DateTime, `parseInput` shaping                     |
 
 ## What we don't test
 
