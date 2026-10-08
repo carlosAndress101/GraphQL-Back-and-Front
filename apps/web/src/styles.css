@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — Notion-inspired workspace: neutral surfaces, one blue accent,
+ * system font. Components use these semantic names, never raw hex values.
+ */
+@theme {
+  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", Helvetica, sans-serif;
+
+  --color-surface: #ffffff;
+  --color-sidebar: #f7f7f5;
+  --color-hover: #efefed;
+  --color-selected: #eaeae7;
+  --color-border: #ededeb;
+  --color-text: #37352f;
+  --color-muted: #6f6e69;
+  --color-subtle: #c7c6c3;
+  --color-accent: #2383e2;
+  --color-accent-strong: #1a6dc0;
+  --color-danger: #c4382c;
+  --color-success: #2e7d4f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-surface: #191919;
+    --color-sidebar: #202020;
+    --color-hover: #2c2c2c;
+    --color-selected: #333333;
+    --color-border: #2f2f2f;
+    --color-text: #e6e6e4;
+    --color-muted: #9b9a97;
+    --color-subtle: #5a5a58;
+    --color-accent: #529cca;
+    --color-accent-strong: #6fb0dc;
+    --color-danger: #e5675c;
+    --color-success: #5fb37f;
+  }
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}

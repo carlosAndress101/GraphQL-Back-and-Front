@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Fail if GraphQL operations changed without regenerating the manifest
+      # the API image ships (apps/web/src/gql is committed by codegen).
+      - name: Check persisted documents are in sync
+        run: pnpm --filter @app/web codegen && git diff --exit-code apps/web/src/gql
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm fmt:check
+      - run: pnpm test
+      # Audit production dependencies at high severity. Both apps ship to
+      # production now (API on Dokploy, web on Cloudflare Pages).
+      - name: Audit API production dependencies
+        run: pnpm --filter @app/api audit --prod --audit-level high
+      - name: Audit web production dependencies
+        run: pnpm --filter @app/web audit --prod --audit-level high
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image (no push)
+        run: docker build --file apps/api/Dockerfile --tag app-api:ci .

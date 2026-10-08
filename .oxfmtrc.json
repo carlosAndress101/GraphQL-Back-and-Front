@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "ignorePatterns": [
+    ".worktrees/**",
+    "apps/web/**",
+    "**/__generated__/**",
+    "**/routeTree.gen.ts",
+    "apps/web/src/gql/**",
+    "**/migrations/**",
+    "pnpm-lock.yaml"
+  ]
+}

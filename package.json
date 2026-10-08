@@ -1,22 +1,24 @@
 {
-  "name": "mern-apollo",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "graphql-back-and-front",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server/index.js"
+    "dev": "pnpm --parallel --recursive run dev",
+    "typecheck": "pnpm --recursive run typecheck",
+    "lint": "oxlint",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "test": "pnpm --recursive run test",
+    "build": "pnpm --recursive run build",
+    "codegen": "pnpm --recursive run codegen"
   },
-  "keywords": [],
-  "author": "carlos andrés hinestroza pérez",
-  "license": "ISC",
-  "dependencies": {
-    "@apollo/server": "^4.3.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2",
-    "graphql": "^16.6.0",
-    "graphql-tag": "^2.12.6",
-    "mongoose": "^6.9.0"
-  }
+  "devDependencies": {
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.3.4"
 }
