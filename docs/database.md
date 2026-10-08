@@ -22,17 +22,18 @@ Foreign keys use `ON DELETE CASCADE`. Deleting a user removes their sessions and
 ## Migrations
 
 ```sh
-pnpm --filter @app/api db:generate   # drizzle-kit generate → SQL files
-pnpm --filter @app/api db:migrate    # apply pending migrations
+pnpm --filter @app/api db:generate      # drizzle-kit generate → SQL files
+pnpm --filter @app/api db:migrate       # local/dev: drizzle-kit migrate
+pnpm --filter @app/api db:migrate:prod  # production: node src/migrate.ts
 ```
 
 Never use `drizzle-kit push`. Migrations are versioned SQL committed to the repo.
 
+### Migration strategy
+
+- **Local/dev/tests**: `drizzle-kit migrate` against the Neon `dev` branch; PGlite suites migrate an empty database per test run.
+- **Production**: `src/migrate.ts` — a standalone script that validates env, runs the same committed SQL through the Drizzle node-postgres migrator, logs with the structured logger, closes the pool, and exits non-zero on failure. The Docker image runs it before the server on every container start. Single instance on Dokploy, so concurrent runs cannot race; if the API ever scales to multiple instances, move migrations to a separate release step.
+
 ## Connections
 
 One `pg.Pool` per process, created in `server.ts`, closed on `SIGTERM`/`SIGINT`. SSL is required in production (`sslmode=require` in the connection string).
-
-## TODO
-
-- TODO(round 1): migration files and the PGlite test helper (Dev1).
-- TODO(round 2): session repository details.
