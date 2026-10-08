@@ -212,17 +212,18 @@ describe("task repository", () => {
     await tasks.setCompleted(owner.id, third.id, true);
 
     resetQueryCount();
-    expect(
-      await tasks.countsByProjectIds(owner.id, [
-        projectWithTasks.id,
-        secondProject.id,
-        emptyProject.id,
-        foreignProject.id,
-      ]),
-    ).toEqual([
-      { projectId: projectWithTasks.id, total: 2, completed: 1 },
-      { projectId: secondProject.id, total: 1, completed: 1 },
+    const counts = await tasks.countsByProjectIds(owner.id, [
+      projectWithTasks.id,
+      secondProject.id,
+      emptyProject.id,
+      foreignProject.id,
     ]);
+    expect(counts.toSorted((left, right) => left.projectId.localeCompare(right.projectId))).toEqual(
+      [
+        { projectId: projectWithTasks.id, total: 2, completed: 1 },
+        { projectId: secondProject.id, total: 1, completed: 1 },
+      ].toSorted((left, right) => left.projectId.localeCompare(right.projectId)),
+    );
     expect(queryCount()).toBe(1);
     expect(await tasks.countsByProjectIds(owner.id, [])).toEqual([]);
 
