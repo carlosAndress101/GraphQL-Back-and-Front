@@ -5,7 +5,7 @@ A project and task manager. GraphQL API (Hono + Yoga) with PostgreSQL, and a Rea
 ## Stack
 
 - **API**: Node 24, Hono, GraphQL Yoga, Drizzle, PostgreSQL (Neon), Zod, Vitest
-- **Web**: React 19, TanStack Router, TanStack Query, Tailwind 4 (phase 4; legacy client until then)
+- **Web**: React 19, TanStack Router, TanStack Query, Tailwind 4 (Cloudflare Pages)
 - **Tooling**: pnpm 12, TypeScript 7, oxlint, oxfmt
 
 ## Quick start
@@ -27,6 +27,7 @@ pnpm dev
 - [Architecture](docs/architecture.md)
 - [Getting started](docs/getting-started.md)
 - [Environment](docs/environment.md)
+- [Frontend](docs/frontend.md)
 - [Development](docs/development.md)
 - [Testing](docs/testing.md)
 - [Database](docs/database.md)

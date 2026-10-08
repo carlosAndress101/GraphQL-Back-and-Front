@@ -8,5 +8,5 @@
     "types": ["vite/client", "@testing-library/jest-dom/vitest"],
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "*.ts"]
+  "include": ["src", "scripts", "*.ts"]
 }

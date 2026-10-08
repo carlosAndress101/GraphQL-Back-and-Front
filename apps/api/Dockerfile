@@ -29,6 +29,10 @@ COPY --chown=node:node --from=deps /repo/apps/api/node_modules ./apps/api/node_m
 COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY --chown=node:node apps/api/package.json ./apps/api/package.json
 COPY --chown=node:node apps/api/src ./apps/api/src
+# Trusted documents: the API ships the persisted-documents manifest the web
+# was built from (generated in phase 4; absent until DEVELOPER 1 merges it).
+COPY --chown=node:node apps/web/src/gql/persisted-documents.json ./persisted-documents.json
+ENV PERSISTED_DOCUMENTS_PATH=/app/persisted-documents.json
 USER node
 WORKDIR /app/apps/api
 EXPOSE 4000

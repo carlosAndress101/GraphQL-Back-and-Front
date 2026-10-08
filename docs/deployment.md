@@ -43,6 +43,14 @@ Set in Dokploy (every variable is validated at startup; the process exits on bad
 
 The container migrates before serving on every start (`db:migrate:prod` runs the same committed SQL as local `db:migrate`, via `src/migrate.ts`). The process exits non-zero when migrations fail, so a bad migration blocks the deploy instead of serving against a stale schema. This is safe because Dokploy runs a single API instance; with multiple instances, migrations must move to a separate release step run once per deploy.
 
+## Cloudflare Pages
+
+- Build command: `pnpm --filter @app/web build` (typecheck + Vite + Pages file generation).
+- Output directory: `apps/web/dist`.
+- `VITE_API_URL`: required at build time — the build fails without it, so a misconfigured deploy can never silently point at localhost. Must be `https:` except `http://localhost`/`http://127.0.0.1` for local builds; baked into the `_headers` CSP `connect-src`.
+- Custom domain: `app.<domain>`.
+- `_headers` and `_redirects` are generated at build time by `apps/web/scripts/write-pages-files.ts`: strict CSP (no `unsafe-inline` — the build emits no inline scripts/styles), HSTS, nosniff, referrer and permissions policies, same-origin opener, immutable caching for `/assets/*`, `no-cache` for `/index.html`, SPA fallback `/* /index.html 200`.
+
 ## Health checks
 
 - `/health/live` → 200 when the process is alive. Use it for the container/Dokploy health check.
@@ -62,5 +70,4 @@ Cloudflare Tunnel (`cloudflared`) routes `api.<domain>` to the Dokploy service. 
 
 ## TODO
 
-- TODO(round 6): Cloudflare Pages `_headers` and `_redirects`.
 - TODO(round 5): exact tunnel and domain configuration once the domain is chosen.

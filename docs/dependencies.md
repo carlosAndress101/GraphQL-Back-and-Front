@@ -60,13 +60,12 @@ Old stack: Express 4.18, Apollo Server 4.3 (EOL), Mongoose 6.9, React 18, Vite 4
 
 ## Audit policy
 
-CI audits only `@app/api` production dependencies at `high` severity:
+CI audits production dependencies at `high` severity for both apps:
 
 ```sh
 pnpm --filter @app/api audit --prod --audit-level high
+pnpm --filter @app/web audit --prod --audit-level high
 ```
-
-`apps/web` stays on the legacy stack until the phase 4 rewrite. Its known advisories must not block CI.
 
 `GHSA-7mx3-vvmw-hjmv` (`@graphql-tools/utils` prototype pollution) cleared itself: the graphql-16 tree resolved utils to 12.0.3 (patched), so the CI `--ignore` flag was removed. Remaining below the gate (moderate, tracked): two react-router advisories via GraphiQL and one OpenTelemetry baggage advisory.
 
