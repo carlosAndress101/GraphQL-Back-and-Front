@@ -1,7 +1,10 @@
 import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-const createdAt = timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
-const updatedAt = timestamp("updated_at", { withTimezone: true })
+// Millisecond precision matches JS Date, so a (createdAt, id) keyset cursor round-trips exactly.
+const createdAt = timestamp("created_at", { withTimezone: true, precision: 3 })
+  .notNull()
+  .defaultNow();
+const updatedAt = timestamp("updated_at", { withTimezone: true, precision: 3 })
   .notNull()
   .defaultNow()
   .$onUpdate(() => new Date());
