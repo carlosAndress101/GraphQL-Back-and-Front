@@ -24,17 +24,24 @@ function asAppError(error: unknown): AppError | undefined {
   return undefined;
 }
 
+function isGraphQLErrorShaped(error: unknown): error is Error {
+  return error instanceof Error && "extensions" in error && "locations" in error;
+}
+
 /**
- * Framework errors (validation, persisted operations, CSRF) carry their own
- * contract in `extensions` and must pass through untouched — including their
- * HTTP status. Structural check for the same dual-copy reason.
+ * Mirrors Yoga's `isOriginalGraphQLError` structurally: a chain that bottoms
+ * out in a GraphQL error (validation, persisted operations, CSRF, armor)
+ * rather than a foreign throw is a framework error and passes through
+ * untouched, with its message, code and HTTP status.
  */
-function isFrameworkError(error: unknown): error is Error {
-  if (!(error instanceof Error)) return false;
-  if (!("extensions" in error)) return false;
-  const extensions: unknown = error.extensions;
-  if (typeof extensions !== "object" || extensions === null) return false;
-  return "code" in extensions || "http" in extensions;
+function isTerminalGraphQLError(error: unknown): error is Error {
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+  while (isGraphQLErrorShaped(current) && !seen.has(current)) {
+    seen.add(current);
+    current = originalErrorOf(current);
+  }
+  return current === undefined || current === null;
 }
 
 /**
@@ -44,6 +51,10 @@ function isFrameworkError(error: unknown): error is Error {
  * environment, so neither the stack nor the original message can ever leak.
  * Errors are built with Yoga's own `createGraphQLError` so the result is
  * recognized by Yoga's pipeline in every module system.
+ *
+ * Resolvers must throw AppError for client-safe errors: a bare GraphQLError
+ * thrown from a resolver also passes through (Yoga semantics), so it must
+ * never carry sensitive details.
  */
 export const maskError: MaskError = (error) => {
   const appError = asAppError(error);
@@ -55,7 +66,7 @@ export const maskError: MaskError = (error) => {
       },
     });
   }
-  if (isFrameworkError(error)) return error;
+  if (isTerminalGraphQLError(error)) return error;
   return createGraphQLError("Unexpected error", {
     extensions: { code: "INTERNAL_SERVER_ERROR", unexpected: true },
   });
