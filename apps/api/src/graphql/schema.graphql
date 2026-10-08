@@ -1,0 +1,92 @@
+"""
+ISO-8601 date-time string, e.g. 2026-10-08T12:00:00.000Z
+"""
+scalar DateTime
+
+type User {
+  id: ID!
+  email: String!
+}
+
+type Project {
+  id: ID!
+  name: String!
+  description: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  taskCounts: TaskCounts!
+  tasks(first: Int = 20, after: String, completed: Boolean): TaskPage!
+}
+
+type TaskCounts {
+  total: Int!
+  completed: Int!
+}
+
+type Task {
+  id: ID!
+  title: String!
+  completed: Boolean!
+  project: Project!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type ProjectPage {
+  items: [Project!]!
+  "Pass as `after` to fetch the next page. Null when there are no more items."
+  nextCursor: String
+}
+
+type TaskPage {
+  items: [Task!]!
+  nextCursor: String
+}
+
+input CredentialsInput {
+  email: String!
+  password: String!
+}
+
+input CreateProjectInput {
+  name: String!
+  description: String
+}
+
+input UpdateProjectInput {
+  name: String
+  description: String
+}
+
+input CreateTaskInput {
+  projectId: ID!
+  title: String!
+}
+
+input UpdateTaskInput {
+  title: String
+}
+
+type Query {
+  "The signed-in user, or null when there is no valid session."
+  me: User
+  projects(first: Int = 20, after: String, search: String): ProjectPage!
+  "Null when the project does not exist or belongs to another user."
+  project(id: ID!): Project
+}
+
+type Mutation {
+  signUp(input: CredentialsInput!): User!
+  signIn(input: CredentialsInput!): User!
+  signOut: Boolean!
+
+  createProject(input: CreateProjectInput!): Project!
+  updateProject(id: ID!, input: UpdateProjectInput!): Project!
+  "Deletes the project and, by cascade, its tasks. Returns the deleted id."
+  deleteProject(id: ID!): ID!
+
+  createTask(input: CreateTaskInput!): Task!
+  updateTask(id: ID!, input: UpdateTaskInput!): Task!
+  setTaskCompleted(id: ID!, completed: Boolean!): Task!
+  deleteTask(id: ID!): ID!
+}
