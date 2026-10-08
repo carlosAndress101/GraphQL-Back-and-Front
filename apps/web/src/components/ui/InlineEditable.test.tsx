@@ -147,4 +147,19 @@ describe("InlineEditable", () => {
       "Add text…",
     );
   });
+
+  it("starts editing with selected text when defaultEditing", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn<(value: string) => void>();
+    render(<InlineEditable value="Prefilled" onSave={onSave} label="Title" defaultEditing />);
+    const field = screen.getByLabelText("Title");
+    expect(field.tagName).toBe("INPUT");
+    expect(field).toHaveValue("Prefilled");
+    expect(field).toHaveFocus();
+    expect(field instanceof HTMLInputElement && field.selectionStart).toBe(0);
+    expect(field instanceof HTMLInputElement && field.selectionEnd).toBe("Prefilled".length);
+    await user.clear(field);
+    await user.type(field, "Edited{Enter}");
+    expect(onSave).toHaveBeenCalledWith("Edited");
+  });
 });

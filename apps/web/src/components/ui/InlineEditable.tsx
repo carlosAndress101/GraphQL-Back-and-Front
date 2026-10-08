@@ -8,6 +8,8 @@ export type InlineEditableProps = {
   label: string;
   placeholder?: string;
   multiline?: boolean;
+  /** Start in edit mode on mount, with the input focused and the text selected. */
+  defaultEditing?: boolean;
   className?: string;
 };
 
@@ -22,17 +24,24 @@ export function InlineEditable({
   label,
   placeholder = "Empty",
   multiline = false,
+  defaultEditing = false,
   className = "",
 }: InlineEditableProps) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(defaultEditing);
   const [draft, setDraft] = useState(value);
   const [pending, setPending] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const fieldRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const mountedRef = useRef(true);
+  const selectOnMount = useRef(defaultEditing);
 
   useEffect(() => {
     mountedRef.current = true;
+    if (selectOnMount.current) {
+      selectOnMount.current = false;
+      fieldRef.current?.focus();
+      fieldRef.current?.select();
+    }
     return () => {
       mountedRef.current = false;
     };

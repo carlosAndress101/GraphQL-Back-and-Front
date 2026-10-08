@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Button } from "../ui/Button.tsx";
 import { PageIcon, PlusIcon, SearchIcon } from "../ui/icons.tsx";
 
 export type SidebarProject = {
@@ -19,6 +20,10 @@ export type SidebarProps = {
   onNewProject: () => void;
   userEmail: string;
   onSignOut: () => void;
+  /** Show a subtle "Load more" button after the projects list (pagination). */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
 };
 
 function ProjectContent({ item }: { item: SidebarProject }) {
@@ -40,6 +45,9 @@ export function Sidebar({
   onNewProject,
   userEmail,
   onSignOut,
+  hasMore = false,
+  onLoadMore,
+  loadingMore = false,
 }: SidebarProps) {
   const initial = workspaceName.charAt(0).toUpperCase() || "?";
 
@@ -77,6 +85,13 @@ export function Sidebar({
           </li>
         ))}
       </ul>
+      {hasMore && (
+        <div className="px-2.5 py-1">
+          <Button variant="ghost" size="sm" loading={loadingMore} onClick={onLoadMore}>
+            Load more
+          </Button>
+        </div>
+      )}
       <button
         type="button"
         onClick={onNewProject}
