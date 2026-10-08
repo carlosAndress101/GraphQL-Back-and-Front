@@ -19,6 +19,8 @@ const EnvSchema = z
     TRUST_PROXY: z.enum(["none", "cloudflare"]).default("none"),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
     OTEL_EXPORTER_OTLP_ENDPOINT: z.url().optional(),
+    // Path to persisted-documents.json. Required in production (trusted documents).
+    PERSISTED_DOCUMENTS_PATH: z.string().min(1).optional(),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== "production") return;
@@ -30,6 +32,13 @@ const EnvSchema = z
           message: `Production origins must use https: ${origin}`,
         });
       }
+    }
+    if (!env.PERSISTED_DOCUMENTS_PATH) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["PERSISTED_DOCUMENTS_PATH"],
+        message: "PERSISTED_DOCUMENTS_PATH is required in production",
+      });
     }
   });
 

@@ -328,7 +328,11 @@ describe("full stack", () => {
     const app = new Hono();
     app.use(
       "/graphql",
-      ...httpSecurity({ CORS_ORIGINS: ["http://localhost:5173"], NODE_ENV: "test" }),
+      ...httpSecurity({
+        CORS_ORIGINS: ["http://localhost:5173"],
+        NODE_ENV: "test",
+        TRUST_PROXY: "none",
+      }),
     );
     const yoga = testYoga({ production: false });
     app.all("/graphql", (c) => yoga.handle(c.req.raw));
