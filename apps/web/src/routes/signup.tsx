@@ -1,8 +1,11 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { Button } from "../components/ui/Button.tsx";
+import { TextField } from "../components/ui/TextField.tsx";
 import { meQueryOptions, useSignUp } from "../features/auth/hooks.ts";
 import { GraphQLRequestError } from "../lib/graphql.ts";
+import { fieldErrorMessage } from "./-form-errors.ts";
 
 export const Route = createFileRoute("/signup")({
   beforeLoad: async ({ context }) => {
@@ -17,8 +20,14 @@ function SignupPage() {
   const signUp = useSignUp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const emailError =
-    signUp.error instanceof GraphQLRequestError ? signUp.error.fieldErrors?.email?.[0] : undefined;
+  const error = signUp.error;
+  const emailError = fieldErrorMessage(error, "email");
+  const genericError =
+    error && !emailError
+      ? error instanceof GraphQLRequestError && error.code === "RATE_LIMITED"
+        ? "Too many attempts. Please wait a moment and try again."
+        : error.message
+      : undefined;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,48 +45,35 @@ function SignupPage() {
         <p className="mt-2 text-muted">A clear space to keep your projects moving.</p>
       </header>
       <form className="flex flex-col gap-5" onSubmit={submit}>
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="signup-email">
-            Email
-          </label>
-          <input
-            autoComplete="email"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 focus-visible:outline-2 focus-visible:outline-accent"
-            id="signup-email"
-            onChange={(event) => setEmail(event.currentTarget.value)}
-            required
-            type="email"
-            value={email}
-          />
-          {emailError ? <p className="mt-1 text-sm text-danger">{emailError}</p> : null}
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium" htmlFor="signup-password">
-            Password
-          </label>
-          <input
-            autoComplete="new-password"
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 focus-visible:outline-2 focus-visible:outline-accent"
-            id="signup-password"
-            minLength={8}
-            onChange={(event) => setPassword(event.currentTarget.value)}
-            required
-            type="password"
-            value={password}
-          />
-        </div>
-        {signUp.error && !emailError ? (
+        <TextField
+          autoComplete="email"
+          error={emailError}
+          id="signup-email"
+          label="Email"
+          onChange={(event) => setEmail(event.currentTarget.value)}
+          required
+          type="email"
+          value={email}
+        />
+        <TextField
+          autoComplete="new-password"
+          hint="At least 8 characters."
+          id="signup-password"
+          label="Password"
+          minLength={8}
+          onChange={(event) => setPassword(event.currentTarget.value)}
+          required
+          type="password"
+          value={password}
+        />
+        {genericError ? (
           <p className="text-sm text-danger" role="alert">
-            {signUp.error.message}
+            {genericError}
           </p>
         ) : null}
-        <button
-          className="min-h-11 rounded-md bg-accent px-4 py-2 font-medium text-surface hover:bg-accent-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60"
-          disabled={signUp.isPending}
-          type="submit"
-        >
-          {signUp.isPending ? "Creating account…" : "Create account"}
-        </button>
+        <Button disabled={signUp.isPending} loading={signUp.isPending} size="lg" type="submit">
+          Create account
+        </Button>
       </form>
       <p className="mt-6 text-sm text-muted">
         Already registered?{" "}

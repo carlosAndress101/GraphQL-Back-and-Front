@@ -1,16 +1,39 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { projectQueryOptions, useProject, useUpdateProject } from "../features/projects/hooks.ts";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
+import { Button } from "../components/ui/Button.tsx";
+import { Checkbox } from "../components/ui/Checkbox.tsx";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog.tsx";
+import { EmptyState } from "../components/ui/EmptyState.tsx";
+import { ErrorState } from "../components/ui/ErrorState.tsx";
+import { IconButton } from "../components/ui/IconButton.tsx";
+import { MoreIcon, TrashIcon } from "../components/ui/icons.tsx";
+import { InlineEditable } from "../components/ui/InlineEditable.tsx";
+import { ProgressBar } from "../components/ui/ProgressBar.tsx";
+import { Skeleton } from "../components/ui/Skeleton.tsx";
+import { Tabs } from "../components/ui/Tabs.tsx";
+import { useToast } from "../components/ui/Toast.tsx";
+import { PageHeader, PropertyRow } from "../components/layout/PageHeader.tsx";
+import { Topbar } from "../components/layout/Topbar.tsx";
+import {
+  useDeleteProject,
+  projectQueryOptions,
+  useProject,
+  useUpdateProject,
+} from "../features/projects/hooks.ts";
 import {
   useCreateTask,
+  useDeleteTask,
   useProjectTasks,
   useSetTaskCompleted,
   useUpdateTask,
 } from "../features/tasks/hooks.ts";
-import { InlineEditor } from "./-inline-editor.tsx";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { mutationErrorMessage } from "./-form-errors.ts";
+import { completedFromFilter, validateProjectSearch } from "./-project-search.ts";
+import type { TaskFilter } from "./-project-search.ts";
 
 export const Route = createFileRoute("/_app/projects/$projectId")({
+  validateSearch: validateProjectSearch,
   beforeLoad: async ({ context, params }) => {
     const project = await context.queryClient.fetchQuery(projectQueryOptions(params.projectId));
     if (!project.project) throw notFound();
@@ -18,253 +41,288 @@ export const Route = createFileRoute("/_app/projects/$projectId")({
   component: ProjectDetailPage,
 });
 
+const taskFilterTabs: { id: TaskFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "open", label: "Open" },
+  { id: "done", label: "Done" },
+];
+
+const createdAtFormatter = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
 function ProjectDetailPage() {
   const { projectId } = Route.useParams();
-  const [completedFilter, setCompletedFilter] = useState<boolean | null>(null);
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const titleContainerRef = useRef<HTMLDivElement>(null);
+
+  const currentFilter = search.filter ?? "all";
   const projectQuery = useProject(projectId);
   const project = projectQuery.data?.project;
+  const completedFilter = completedFromFilter(currentFilter);
   const tasks = useProjectTasks(projectId, completedFilter);
   const updateProject = useUpdateProject();
+  const deleteProject = useDeleteProject();
   const updateTask = useUpdateTask();
   const setTaskCompleted = useSetTaskCompleted();
   const createTask = useCreateTask();
+  const deleteTask = useDeleteTask();
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const didAutoEdit = useRef(false);
+
+  useEffect(() => {
+    if (didAutoEdit.current || search.edit !== "title") return;
+    didAutoEdit.current = true;
+    const trigger = titleContainerRef.current?.querySelector<HTMLButtonElement>(
+      'button[aria-label="Edit project name"]',
+    );
+    trigger?.click();
+    void navigate({
+      to: "/projects/$projectId",
+      params: { projectId },
+      search: { filter: search.filter },
+      replace: true,
+    });
+  }, [navigate, projectId, search.edit, search.filter]);
 
   function addTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = newTaskTitle.trim();
     if (!title) return;
-    createTask.mutate({ input: { projectId, title } }, { onSuccess: () => setNewTaskTitle("") });
+    createTask.mutate(
+      { input: { projectId, title } },
+      {
+        onSuccess: () => setNewTaskTitle(""),
+        onError: (error) => toast.error(mutationErrorMessage(error)),
+      },
+    );
+  }
+
+  function setFilter(filter: TaskFilter) {
+    void navigate({
+      to: "/projects/$projectId",
+      params: { projectId },
+      search: { filter },
+    });
   }
 
   if (projectQuery.isPending) {
-    return <output className="block p-8 text-muted">Loading project…</output>;
+    return (
+      <div className="mx-auto w-full max-w-[760px] px-8 py-14">
+        <Skeleton lines={5} />
+      </div>
+    );
   }
   if (projectQuery.isError) {
     return (
-      <section className="p-8 text-text" role="alert">
-        <h1 className="text-2xl font-semibold">Project could not be loaded</h1>
-        <p className="mt-2 text-muted">{projectQuery.error.message}</p>
-        <button
-          className="mt-4 text-accent underline"
-          onClick={() => void projectQuery.refetch()}
-          type="button"
-        >
-          Try again
-        </button>
-      </section>
+      <ErrorState
+        message={mutationErrorMessage(projectQuery.error)}
+        onRetry={() => void projectQuery.refetch()}
+      />
     );
   }
   if (!project) {
     return (
-      <section className="p-8 text-text">
-        <h1 className="text-2xl font-semibold">Project not found</h1>
-        <Link className="mt-4 inline-block text-accent underline" to="/projects">
-          Return to projects
-        </Link>
-      </section>
+      <EmptyState
+        action={
+          <Link className="text-accent underline" to="/projects">
+            Return to projects
+          </Link>
+        }
+        title="Project not found"
+      />
     );
   }
 
   const taskItems = tasks.data?.pages.flatMap((page) => page.project?.tasks.items ?? []) ?? [];
   const taskCounts = project.taskCounts;
-  const progressMaximum = Math.max(taskCounts.total, 1);
 
   return (
-    <article className="mx-auto w-full max-w-4xl px-5 py-8 sm:px-10 sm:py-12">
-      <header className="mb-8 border-b border-border pb-5">
-        <nav aria-label="Breadcrumb" className="mb-6 text-sm text-muted">
-          <Link className="underline hover:text-text" to="/projects">
-            Projects
-          </Link>
-          <span aria-hidden="true" className="mx-2">
-            /
-          </span>
-          <span aria-current="page">{project.name}</span>
-        </nav>
-        <InlineEditor
-          className="text-3xl font-semibold tracking-tight sm:text-4xl"
-          label="project name"
-          onSave={(name) => {
-            if (name && name !== project.name) {
-              updateProject.mutate({ id: project.id, input: { name } });
-            }
-          }}
-          value={project.name}
-        />
-        <dl className="mt-6 grid grid-cols-[auto_1fr] gap-x-5 gap-y-3 text-sm sm:max-w-lg">
-          <dt className="text-muted">Progress</dt>
-          <dd className="flex flex-wrap items-center gap-3">
-            <progress
-              aria-label={`${taskCounts.completed} of ${taskCounts.total} tasks completed`}
-              className="h-2 w-40 accent-accent"
-              max={progressMaximum}
+    <div className="flex min-h-full flex-col">
+      <Topbar
+        right={
+          <IconButton label="More actions" onClick={() => setConfirmingDelete(true)}>
+            <MoreIcon className="h-4 w-4" />
+          </IconButton>
+        }
+        trail={[{ label: "Projects" }, { label: project.name, current: true }]}
+      />
+      <ConfirmDialog
+        confirmLabel="Delete"
+        description={`"${project.name}" and all of its tasks will be permanently deleted.`}
+        destructive
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={() => {
+          setConfirmingDelete(false);
+          deleteProject.mutate(
+            { id: project.id },
+            {
+              onSuccess: () => {
+                toast.success("Project deleted");
+                void navigate({ to: "/projects" });
+              },
+              onError: (error) => toast.error(mutationErrorMessage(error)),
+            },
+          );
+        }}
+        open={confirmingDelete}
+        title="Delete this project?"
+      />
+
+      <PageHeader
+        title={
+          <div ref={titleContainerRef}>
+            <InlineEditable
+              label="project name"
+              onSave={(name) => {
+                const trimmed = name.trim();
+                if (!trimmed || trimmed === project.name) return;
+                updateProject.mutate(
+                  { id: project.id, input: { name: trimmed } },
+                  { onError: (error) => toast.error(mutationErrorMessage(error)) },
+                );
+              }}
+              value={project.name}
+            />
+          </div>
+        }
+      >
+        <PropertyRow label="Progress">
+          <div className="flex items-center gap-3">
+            <ProgressBar
+              className="w-40"
+              label={`${taskCounts.completed} of ${taskCounts.total} tasks completed`}
+              max={Math.max(taskCounts.total, 1)}
               value={taskCounts.completed}
             />
-            <span>
+            <span className="text-sm text-muted">
               {taskCounts.completed} of {taskCounts.total} done
             </span>
-          </dd>
-          <dt className="text-muted">Created</dt>
-          <dd>{new Date(project.createdAt).toLocaleDateString()}</dd>
-        </dl>
-        <div className="mt-6 max-w-2xl">
-          <InlineEditor
-            className="text-base leading-7 text-muted"
-            label="project description"
-            multiline
-            onSave={(description) => {
-              const nextDescription = description.trim() || null;
-              if (nextDescription !== project.description) {
-                updateProject.mutate({ id: project.id, input: { description: nextDescription } });
-              }
-            }}
-            placeholder="Add a description…"
-            value={project.description ?? ""}
-          />
-        </div>
-        {updateProject.error ? (
-          <p className="mt-3 text-sm text-danger" role="alert">
-            {updateProject.error.message}
-          </p>
-        ) : null}
-      </header>
-
-      <section aria-labelledby="tasks-heading">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold" id="tasks-heading">
-              Tasks
-            </h2>
-            <p className="mt-1 text-sm text-muted">Keep the next steps visible and in order.</p>
           </div>
-          <fieldset className="m-0 flex gap-1 border-0 border-b border-border p-0">
-            <legend className="sr-only">Task filter</legend>
-            <TaskFilterButton
-              active={completedFilter === null}
-              onClick={() => setCompletedFilter(null)}
-            >
-              All
-            </TaskFilterButton>
-            <TaskFilterButton
-              active={completedFilter === false}
-              onClick={() => setCompletedFilter(false)}
-            >
-              Open
-            </TaskFilterButton>
-            <TaskFilterButton
-              active={completedFilter === true}
-              onClick={() => setCompletedFilter(true)}
-            >
-              Done
-            </TaskFilterButton>
-          </fieldset>
-        </div>
+        </PropertyRow>
+        <PropertyRow label="Created">{createdAtFormatter.format(new Date(project.createdAt))}</PropertyRow>
 
-        {tasks.isPending ? <output className="block py-8 text-muted">Loading tasks…</output> : null}
+        <InlineEditable
+          className="text-base leading-7 text-muted"
+          label="project description"
+          multiline
+          onSave={(description) => {
+            const next = description.trim() || null;
+            if (next === (project.description ?? null)) return;
+            updateProject.mutate(
+              { id: project.id, input: { description: next } },
+              { onError: (error) => toast.error(mutationErrorMessage(error)) },
+            );
+          }}
+          placeholder="Add a description"
+          value={project.description ?? ""}
+        />
+
+        <Tabs label="Task view" onChange={(id) => setFilter(id as TaskFilter)} tabs={taskFilterTabs} value={currentFilter} />
+
+        {tasks.isPending ? <Skeleton lines={4} /> : null}
         {tasks.isError ? (
-          <div className="py-6 text-sm text-danger" role="alert">
-            <p>Tasks could not be loaded.</p>
-            <button className="mt-1 underline" onClick={() => void tasks.refetch()} type="button">
-              Try again
-            </button>
-          </div>
+          <ErrorState message={mutationErrorMessage(tasks.error)} onRetry={() => void tasks.refetch()} />
         ) : null}
         {tasks.isSuccess && taskItems.length === 0 ? (
-          <p className="py-8 text-muted">
-            {completedFilter === true
-              ? "No completed tasks yet."
-              : completedFilter === false
-                ? "All tasks are complete."
-                : "No tasks yet. Add the first one below."}
-          </p>
+          <EmptyState
+            title={
+              currentFilter === "done"
+                ? "No completed tasks yet"
+                : currentFilter === "open"
+                  ? "All tasks are complete"
+                  : "No tasks yet"
+            }
+            text={currentFilter === "all" ? "Add the first one below." : undefined}
+          />
         ) : null}
+
         {taskItems.length > 0 ? (
-          <ul className="my-4 divide-y divide-border">
+          <ul className="flex flex-col">
             {taskItems.map((task) => (
-              <li className="flex min-h-12 items-center gap-3 py-2" key={task.id}>
-                <input
-                  aria-label={`${task.completed ? "Mark as open" : "Mark as done"}: ${task.title}`}
+              <li
+                className="group flex min-h-9 items-center gap-2.5 rounded px-1 py-0.5 hover:bg-hover focus-within:bg-hover"
+                key={task.id}
+              >
+                <Checkbox
+                  aria-label={task.completed ? `Mark as open: ${task.title}` : `Mark as done: ${task.title}`}
                   checked={task.completed}
-                  className="size-5 shrink-0 accent-accent focus-visible:outline-2 focus-visible:outline-accent"
                   onChange={(event) =>
-                    setTaskCompleted.mutate({
-                      projectId,
-                      id: task.id,
-                      completed: event.currentTarget.checked,
-                    })
+                    setTaskCompleted.mutate(
+                      { projectId, id: task.id, completed: event.currentTarget.checked },
+                      { onError: (error) => toast.error(mutationErrorMessage(error)) },
+                    )
                   }
-                  type="checkbox"
                 />
-                <InlineEditor
-                  className={task.completed ? "flex-1 text-muted line-through" : "flex-1 text-text"}
+                <InlineEditable
+                  className={task.completed ? "flex-1 text-base text-muted line-through" : "flex-1 text-base text-text"}
                   label={`task ${task.title}`}
                   onSave={(title) => {
-                    if (title && title !== task.title) {
-                      updateTask.mutate({ projectId, id: task.id, input: { title } });
-                    }
+                    const trimmed = title.trim();
+                    if (!trimmed || trimmed === task.title) return;
+                    updateTask.mutate(
+                      { projectId, id: task.id, input: { title: trimmed } },
+                      { onError: (error) => toast.error(mutationErrorMessage(error)) },
+                    );
                   }}
                   value={task.title}
                 />
+                <span className="opacity-0 focus-within:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100">
+                  <IconButton
+                    label={`Delete task: ${task.title}`}
+                    onClick={() =>
+                      deleteTask.mutate(
+                        { projectId, id: task.id },
+                        {
+                          onSuccess: () => toast.success("Task deleted"),
+                          onError: (error) => toast.error(mutationErrorMessage(error)),
+                        },
+                      )
+                    }
+                    size="sm"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </IconButton>
+                </span>
               </li>
             ))}
           </ul>
         ) : null}
+
         {tasks.hasNextPage ? (
-          <button
-            className="mb-4 rounded-md px-3 py-2 text-sm text-muted underline hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
+          <Button
             disabled={tasks.isFetchingNextPage}
+            loading={tasks.isFetchingNextPage}
             onClick={() => void tasks.fetchNextPage()}
-            type="button"
+            size="sm"
+            variant="ghost"
           >
-            {tasks.isFetchingNextPage ? "Loading…" : "Load more tasks"}
-          </button>
+            Load more
+          </Button>
         ) : null}
-        <form className="flex gap-3 border-t border-border pt-3" onSubmit={addTask}>
+
+        <form className="flex items-center gap-2.5 border-t border-border px-1 pt-2" onSubmit={addTask}>
+          <span aria-hidden="true" className="h-4 w-4 shrink-0" />
           <label className="sr-only" htmlFor="new-task-title">
             New task
           </label>
           <input
-            className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-2 focus-visible:outline-2 focus-visible:outline-accent"
+            className="min-h-9 min-w-0 flex-1 border-0 bg-transparent text-base text-text placeholder:text-subtle focus-visible:outline-none"
             id="new-task-title"
             onChange={(event) => setNewTaskTitle(event.currentTarget.value)}
             placeholder="Add a task… press Enter to save"
-            required
             value={newTaskTitle}
           />
-          <button
-            className="min-h-11 rounded-md px-3 py-2 text-sm font-medium text-accent hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-60"
-            disabled={createTask.isPending}
-            type="submit"
-          >
-            {createTask.isPending ? "Adding…" : "Add task"}
-          </button>
+          <Button disabled={createTask.isPending || !newTaskTitle.trim()} size="sm" type="submit" variant="ghost">
+            Add
+          </Button>
         </form>
-        {createTask.error || updateTask.error || setTaskCompleted.error ? (
-          <p className="mt-3 text-sm text-danger" role="alert">
-            {(createTask.error ?? updateTask.error ?? setTaskCompleted.error)?.message}
-          </p>
-        ) : null}
-      </section>
-    </article>
-  );
-}
-
-type TaskFilterButtonProps = {
-  active: boolean;
-  children: string;
-  onClick: () => void;
-};
-
-function TaskFilterButton({ active, children, onClick }: TaskFilterButtonProps) {
-  return (
-    <button
-      aria-pressed={active}
-      className={`min-h-10 rounded-t-md px-3 py-2 text-sm ${active ? "bg-selected text-text" : "text-muted hover:bg-hover"} focus-visible:outline-2 focus-visible:outline-accent`}
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
+      </PageHeader>
+    </div>
   );
 }
