@@ -11,3 +11,6 @@
 .github
 docs
 **/*.log
+# The persisted-documents manifest ships inside the API image (production
+# trusted documents). Never ignore it.
+!apps/web/src/gql/persisted-documents.json
