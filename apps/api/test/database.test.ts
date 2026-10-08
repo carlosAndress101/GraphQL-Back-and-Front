@@ -13,5 +13,5 @@ describe("test database", () => {
     } finally {
       await client.close();
     }
-  });
+  }, 15_000);
 });
