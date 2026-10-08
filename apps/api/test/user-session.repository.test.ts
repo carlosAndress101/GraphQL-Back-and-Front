@@ -1,5 +1,6 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { sessions as sessionTable } from "../src/infrastructure/database/schema.ts";
 import { createSessionRepository } from "../src/modules/auth/session.repository.ts";
 import { createUserRepository } from "../src/modules/users/user.repository.ts";
 import { createTestDatabase, type TestDatabase } from "./database.ts";
@@ -126,6 +127,12 @@ describe("user and session repositories", () => {
 
     await db.execute(sql`DELETE FROM users WHERE id = ${user.id}`);
 
+    expect(
+      await db
+        .select({ idHash: sessionTable.idHash })
+        .from(sessionTable)
+        .where(eq(sessionTable.idHash, session.idHash)),
+    ).toEqual([]);
     expect(
       await sessions.findValid(session.idHash, new Date("2025-04-03T02:01:00.000Z")),
     ).toBeNull();
