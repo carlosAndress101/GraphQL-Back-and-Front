@@ -40,3 +40,7 @@ Real buttons/links/labels, visible focus rings, 44 px targets where touch matter
 ## Testing approach
 
 Vitest + Testing Library + user-event under jsdom, tests colocated with components. Query by role/label (that validates the a11y contract, not implementation details). Fake timers for auto-dismiss; `showModal` stubbed for `<dialog>` (jsdom lacks it). Test behavior and contracts — loading/busy states, keyboard flows, confirm/cancel, announce/dismiss — not pixel output or real screen readers.
+
+## Known trade-offs
+
+- **Operation text in the production bundle (deferred, 2026-10-08).** With `documentMode: "string"`, `src/gql/gql.ts` keeps every operation's source text (~5 kB raw, ~1–2 kB gzip) even though production only sends persisted hashes. Removing it needs the codegen SWC/Babel plugin, i.e. a new dev dependency and a change of the React Vite plugin. Declined for now: the saving is small and most of the eager `gql-*` chunk is React/TanStack Query runtime grouped by Vite's automatic chunking. Revisit together with a broader chunking review if initial-load size becomes a measured problem.
