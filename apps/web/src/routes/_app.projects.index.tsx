@@ -1,7 +1,13 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useCreateProject, projectsQueryOptions } from "../features/projects/hooks.ts";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { Button } from "../components/ui/Button.tsx";
+import { EmptyState } from "../components/ui/EmptyState.tsx";
+import { PageIcon } from "../components/ui/icons.tsx";
+import { TextField } from "../components/ui/TextField.tsx";
+import { useToast } from "../components/ui/Toast.tsx";
+import { useCreateProject, projectsQueryOptions } from "../features/projects/hooks.ts";
+import { mutationErrorMessage } from "./-form-errors.ts";
 
 export const Route = createFileRoute("/_app/projects/")({
   beforeLoad: async ({ context }) => {
@@ -16,6 +22,7 @@ export const Route = createFileRoute("/_app/projects/")({
 
 function EmptyProjectsPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const createProject = useCreateProject();
   const [name, setName] = useState("");
 
@@ -32,42 +39,34 @@ function EmptyProjectsPage() {
             to: "/projects/$projectId",
             params: { projectId: data.createProject.id },
           }),
+        onError: (error) => toast.error(mutationErrorMessage(error)),
       },
     );
   }
 
   return (
-    <article className="mx-auto flex min-h-[70vh] max-w-2xl flex-col justify-center px-6 py-12 text-text sm:px-10">
-      <p className="text-sm font-medium text-accent">Your workspace</p>
-      <h1 className="mt-3 text-4xl font-semibold tracking-tight">Create your first project</h1>
-      <p className="mt-4 max-w-xl text-base leading-7 text-muted">
-        Give your work a home. You can add tasks, update details, and keep everything in one place.
-      </p>
-      <form className="mt-8 flex flex-col gap-3 sm:flex-row" onSubmit={submit}>
-        <label className="sr-only" htmlFor="first-project-name">
-          Project name
-        </label>
-        <input
-          className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-2 focus-visible:outline-2 focus-visible:outline-accent"
-          id="first-project-name"
-          onChange={(event) => setName(event.currentTarget.value)}
-          placeholder="e.g. Website redesign"
-          required
-          value={name}
-        />
-        <button
-          className="min-h-11 rounded-md bg-accent px-4 py-2 font-medium text-surface hover:bg-accent-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60"
-          disabled={createProject.isPending}
-          type="submit"
-        >
-          {createProject.isPending ? "Creating…" : "Create project"}
-        </button>
-      </form>
-      {createProject.error ? (
-        <p className="mt-3 text-sm text-danger" role="alert">
-          {createProject.error.message}
-        </p>
-      ) : null}
-    </article>
+    <div className="flex min-h-[70vh] items-center justify-center px-6">
+      <EmptyState
+        action={
+          <form className="mt-2 flex w-full max-w-sm flex-col gap-3 sm:flex-row sm:items-end" onSubmit={submit}>
+            <div className="flex-1">
+              <TextField
+                label="Project name"
+                onChange={(event) => setName(event.currentTarget.value)}
+                placeholder="e.g. Website redesign"
+                required
+                value={name}
+              />
+            </div>
+            <Button disabled={createProject.isPending} loading={createProject.isPending} type="submit">
+              Create project
+            </Button>
+          </form>
+        }
+        icon={<PageIcon className="h-8 w-8" />}
+        text="Give your work a home. Add tasks, update details, and keep everything in one place."
+        title="Create your first project"
+      />
+    </div>
   );
 }
