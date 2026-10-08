@@ -20,7 +20,8 @@ export type AuthSession = {
 export type AuthServiceDeps = {
   users: ReturnType<typeof createUserRepository>;
   sessions: ReturnType<typeof createSessionRepository>;
-  signInLimiter: RateLimiter;
+  /** Separate budgets: sign-up bursts must never lock out sign-ins and vice versa. */
+  limiters: { signIn: RateLimiter; signUp: RateLimiter };
   sessionTtlMs: number;
   now?: () => Date;
 };
@@ -47,7 +48,7 @@ function toAuthUser(id: string, email: string): AuthUser {
 export function createAuthService({
   users,
   sessions,
-  signInLimiter,
+  limiters,
   sessionTtlMs,
   now = () => new Date(),
 }: AuthServiceDeps) {
@@ -58,10 +59,10 @@ export function createAuthService({
     return { user: toAuthUser(userId, email), sessionToken, expiresAt };
   };
 
-  const signUp = async (input: unknown, _options: { clientIp: string }): Promise<AuthSession> => {
-    // clientIp is accepted for interface symmetry (future abuse signals). Sign-up
-    // attempts intentionally do NOT consume the sign-in limiter's budget.
+  const signUp = async (input: unknown, options: { clientIp: string }): Promise<AuthSession> => {
     const { email, password } = parseInput(CredentialsSchema, input);
+    // Throttle account creation (scrypt + spam) before any hashing work.
+    if (!limiters.signUp.consume(`ip:${options.clientIp}`).allowed) throw rateLimited();
     // Hash before insert so duplicates cost the same as new sign-ups (no timing oracle).
     // No pre-check: the unique violation is the single source of truth (no TOCTOU race).
     const passwordHash = await hashPassword(password);
@@ -84,8 +85,8 @@ export function createAuthService({
   ): Promise<AuthSession> => {
     const { email, password } = parseInput(CredentialsSchema, input);
     // Rate limit before any hashing work, on both dimensions.
-    const byIp = signInLimiter.consume(`ip:${options.clientIp}`);
-    const byEmail = signInLimiter.consume(`email:${email}`);
+    const byIp = limiters.signIn.consume(`ip:${options.clientIp}`);
+    const byEmail = limiters.signIn.consume(`email:${email}`);
     if (!byIp.allowed || !byEmail.allowed) throw rateLimited();
     const user = await users.findByEmail(email);
     if (!user) {

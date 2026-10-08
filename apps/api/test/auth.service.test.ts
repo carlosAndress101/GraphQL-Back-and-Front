@@ -24,7 +24,7 @@ afterEach(async () => {
   }
 });
 
-function setup(options?: { limit?: number; sessionTtlMs?: number }) {
+function setup(options?: { signInLimit?: number; signUpLimit?: number; sessionTtlMs?: number }) {
   if (!database) throw new Error("Test database has not been initialized");
   let now = new Date("2026-10-08T00:00:00.000Z");
   const clock = () => new Date(now);
@@ -32,11 +32,18 @@ function setup(options?: { limit?: number; sessionTtlMs?: number }) {
   const service = createAuthService({
     users: createUserRepository(database.db),
     sessions: createSessionRepository(database.db),
-    signInLimiter: createRateLimiter({
-      limit: options?.limit ?? 1000,
-      windowMs: 60_000,
-      now: msClock,
-    }),
+    limiters: {
+      signIn: createRateLimiter({
+        limit: options?.signInLimit ?? 1000,
+        windowMs: 60_000,
+        now: msClock,
+      }),
+      signUp: createRateLimiter({
+        limit: options?.signUpLimit ?? 1000,
+        windowMs: 60_000,
+        now: msClock,
+      }),
+    },
     sessionTtlMs: options?.sessionTtlMs ?? TTL_MS,
     now: clock,
   });
@@ -121,7 +128,7 @@ describe("auth service", () => {
   });
 
   it("rate limits by IP across emails", async () => {
-    const { service } = setup({ limit: 2 });
+    const { service } = setup({ signInLimit: 2 });
     await service.signUp({ email: "a@example.test", password: PASSWORD }, { clientIp: "10.0.0.1" });
     await catchError(
       service.signIn(
@@ -144,7 +151,7 @@ describe("auth service", () => {
   });
 
   it("rate limits by email across IPs and resets after the window", async () => {
-    const { service, advance } = setup({ limit: 2 });
+    const { service, advance } = setup({ signInLimit: 2 });
     await service.signUp({ email: "a@example.test", password: PASSWORD }, { clientIp: "10.0.0.1" });
     for (const clientIp of ["10.0.0.1", "10.0.0.2", "10.0.0.3"]) {
       await catchError(
@@ -161,6 +168,46 @@ describe("auth service", () => {
       { clientIp: "10.0.0.9" },
     );
     expect(await service.authenticate(ok.sessionToken)).toEqual(ok.user);
+  });
+
+  it("rate limits sign-up by IP", async () => {
+    const { service } = setup({ signUpLimit: 2 });
+    const ip = { clientIp: "10.0.0.1" };
+    await service.signUp({ email: "a@example.test", password: PASSWORD }, ip);
+    await service.signUp({ email: "b@example.test", password: PASSWORD }, ip);
+    const blocked = await catchError(
+      service.signUp({ email: "c@example.test", password: PASSWORD }, ip),
+    );
+    expect(blocked).toBeInstanceOf(AppError);
+    expect(blocked).toMatchObject({ code: "RATE_LIMITED" });
+    // An independent IP is unaffected.
+    const other = await service.signUp(
+      { email: "c@example.test", password: PASSWORD },
+      { clientIp: "10.0.0.2" },
+    );
+    expect(await service.authenticate(other.sessionToken)).toEqual(other.user);
+  });
+
+  it("keeps sign-in and sign-up budgets independent", async () => {
+    const { service } = setup({ signInLimit: 1, signUpLimit: 2 });
+    await service.signUp({ email: "a@example.test", password: PASSWORD }, { clientIp: "10.0.0.1" });
+    // Sign-in works even though sign-up budget is half spent on the same IP.
+    const signedIn = await service.signIn(
+      { email: "a@example.test", password: PASSWORD },
+      { clientIp: "10.0.0.1" },
+    );
+    expect(await service.authenticate(signedIn.sessionToken)).toEqual(signedIn.user);
+    // Sign-in budget spent…
+    const blocked = await catchError(
+      service.signIn({ email: "a@example.test", password: PASSWORD }, { clientIp: "10.0.0.1" }),
+    );
+    expect(blocked).toMatchObject({ code: "RATE_LIMITED" });
+    // …but sign-up from the same IP still works.
+    const other = await service.signUp(
+      { email: "b@example.test", password: PASSWORD },
+      { clientIp: "10.0.0.1" },
+    );
+    expect(await service.authenticate(other.sessionToken)).toEqual(other.user);
   });
 
   it("expires sessions past their TTL", async () => {
