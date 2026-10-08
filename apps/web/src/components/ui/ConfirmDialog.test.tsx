@@ -17,6 +17,8 @@ function stubDialog() {
   };
 }
 
+function noop() {}
+
 describe("ConfirmDialog", () => {
   it("confirms and cancels through buttons", async () => {
     stubDialog();
@@ -53,5 +55,36 @@ describe("ConfirmDialog", () => {
     if (!dialog) throw new Error("dialog missing");
     fireEvent(dialog, new Event("cancel", { cancelable: true }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives each dialog unique title and description ids", () => {
+    stubDialog();
+    render(
+      <>
+        <ConfirmDialog
+          open
+          title="First"
+          description="First description"
+          onConfirm={noop}
+          onClose={noop}
+        />
+        <ConfirmDialog
+          open
+          title="Second"
+          description="Second description"
+          onConfirm={noop}
+          onClose={noop}
+        />
+      </>,
+    );
+    const dialogs = document.querySelectorAll("dialog");
+    expect(dialogs).toHaveLength(2);
+    const first = dialogs[0]?.getAttribute("aria-labelledby");
+    const second = dialogs[1]?.getAttribute("aria-labelledby");
+    expect(first).toBeTruthy();
+    expect(second).toBeTruthy();
+    expect(first).not.toBe(second);
+    expect(first ? document.getElementById(first)?.textContent : null).toBe("First");
+    expect(second ? document.getElementById(second)?.textContent : null).toBe("Second");
   });
 });

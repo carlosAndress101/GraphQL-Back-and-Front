@@ -85,6 +85,45 @@ describe("InlineEditable", () => {
     expect(onSave).toHaveBeenCalledWith("Slow title");
   });
 
+  it("stays editing with the draft intact when saving fails", async () => {
+    const user = userEvent.setup();
+    const failingSave = vi
+      .fn<(value: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue(undefined);
+    function FailingHarness() {
+      const [value, setValue] = useState("Old title");
+      return (
+        <InlineEditable
+          value={value}
+          label="Project title"
+          onSave={async (next) => {
+            await failingSave(next);
+            setValue(next);
+          }}
+        />
+      );
+    }
+    const onSave = failingSave;
+    render(<FailingHarness />);
+    await user.click(screen.getByRole("button", { name: "Edit Project title" }));
+    const input = screen.getByLabelText("Project title");
+    await user.clear(input);
+    await user.type(input, "Unsaved work{Enter}");
+    expect(onSave).toHaveBeenCalledTimes(1);
+    // Still editing: draft intact, trigger gone, focus kept in the field.
+    expect(screen.getByLabelText("Project title")).toHaveValue("Unsaved work");
+    expect(screen.getByLabelText("Project title")).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Edit Project title" })).not.toBeInTheDocument();
+    // Retry succeeds and exits edit mode.
+    await user.clear(screen.getByLabelText("Project title"));
+    await user.type(screen.getByLabelText("Project title"), "Saved work{Enter}");
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(
+      await screen.findByRole("button", { name: "Edit Project title" }),
+    ).toHaveTextContent("Saved work");
+  });
+
   it("supports multiline editing where Enter adds a line", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn<(value: string) => void>();

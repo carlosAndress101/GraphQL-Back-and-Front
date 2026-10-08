@@ -28,6 +28,7 @@ export function InlineEditable({
   const [draft, setDraft] = useState(value);
   const [pending, setPending] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const fieldRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -56,11 +57,19 @@ export function InlineEditable({
     setPending(true);
     try {
       await onSave(next);
-    } finally {
+    } catch {
+      // Stay in edit mode with the draft intact and keep focus: the caller
+      // reports the failure (e.g. error toast) and the user can retry.
+      // The rejection is handled here, never unhandled.
       if (mountedRef.current) {
         setPending(false);
-        setEditing(false);
+        fieldRef.current?.focus();
       }
+      return;
+    }
+    if (mountedRef.current) {
+      setPending(false);
+      setEditing(false);
     }
   };
 
@@ -105,9 +114,21 @@ export function InlineEditable({
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       {multiline ? (
-        <textarea rows={3} {...shared} />
+        <textarea
+          rows={3}
+          ref={(element) => {
+            fieldRef.current = element;
+          }}
+          {...shared}
+        />
       ) : (
-        <input type="text" {...shared} />
+        <input
+          type="text"
+          ref={(element) => {
+            fieldRef.current = element;
+          }}
+          {...shared}
+        />
       )}
       {pending && <Spinner size="sm" />}
     </span>

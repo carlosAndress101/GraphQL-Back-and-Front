@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { Button } from "./Button.tsx";
 
 export type ConfirmDialogProps = {
@@ -25,6 +25,8 @@ export function ConfirmDialog({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<Element | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -42,17 +44,17 @@ export function ConfirmDialog({
   return (
     <dialog
       ref={dialogRef}
-      aria-labelledby="confirm-dialog-title"
-      aria-describedby={description ? "confirm-dialog-description" : undefined}
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
       onCancel={onClose}
       onClose={onClose}
       className="rounded-lg border border-border bg-surface p-6 text-text backdrop:bg-black/40"
     >
-      <h2 id="confirm-dialog-title" className="text-base font-semibold">
+      <h2 id={titleId} className="text-base font-semibold">
         {title}
       </h2>
       {description && (
-        <p id="confirm-dialog-description" className="mt-2 max-w-sm text-sm text-muted">
+        <p id={descriptionId} className="mt-2 max-w-sm text-sm text-muted">
           {description}
         </p>
       )}
