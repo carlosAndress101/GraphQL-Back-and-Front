@@ -12,11 +12,18 @@ import { httpSecurity } from "../src/http/security.ts";
 import { AppError, unauthenticated } from "../src/lib/errors.ts";
 
 const typeDefs = /* GraphQL */ `
+  type Node {
+    value: String!
+    child: Node
+    children(first: Int = 20): [Node!]!
+  }
   type Query {
     hello: String!
     boom: String!
     badInput: String!
     secret: String!
+    node: Node!
+    nodes(first: Int = 20): [Node!]!
   }
 `;
 
@@ -32,6 +39,8 @@ const resolvers = {
     secret: (): string => {
       throw new Error("db password=hunter2");
     },
+    node: () => ({}),
+    nodes: () => [],
   },
 };
 
@@ -167,6 +176,66 @@ describe("persisted operations", () => {
   it("allows raw queries outside production", async () => {
     const { json } = await graphqlRequest(testYoga({ production: false }), { query: HELLO_DOC });
     expect(json).toEqual({ data: { hello: "world" } });
+  });
+});
+
+describe("query limits", () => {
+  it("rejects queries deeper than 8", async () => {
+    const deep =
+      "{ node { child { child { child { child { child { child { child { child { value } } } } } } } } } }";
+    const { json } = await graphqlRequest(testYoga({ production: false }), { query: deep });
+    expect(JSON.stringify(json)).toContain("Query depth limit of 8 exceeded");
+  });
+
+  it("rejects more than 10 aliases", async () => {
+    const aliased = `{ ${Array.from({ length: 11 }, (_, i) => `a${i}: hello`).join(" ")} }`;
+    const { json } = await graphqlRequest(testYoga({ production: false }), { query: aliased });
+    expect(JSON.stringify(json)).toContain("Aliases limit of 10 exceeded");
+  });
+
+  it("rejects more than 20 directives", async () => {
+    const directed = `{ ${Array.from({ length: 11 }, (_, i) => `a${i}: hello @include(if: true) @skip(if: false)`).join(" ")} }`;
+    const { json } = await graphqlRequest(testYoga({ production: false }), { query: directed });
+    expect(JSON.stringify(json)).toContain("Directives limit of 20 exceeded");
+  });
+
+  it("rejects more than 2000 tokens", async () => {
+    const { json } = await graphqlRequest(testYoga({ production: false }), {
+      query: `{ ${"hello ".repeat(2100)} }`,
+    });
+    expect(JSON.stringify(json)).toContain("Token limit of 2000 exceeded");
+  });
+
+  it("rejects queries over the cost budget", async () => {
+    const { json } = await graphqlRequest(testYoga({ production: false }), {
+      query: "{ nodes(first: 50) { children(first: 50) { value } } }",
+    });
+    expect(JSON.stringify(json)).toContain("Query Cost limit of 1000 exceeded");
+  });
+
+  it("lets normal queries through", async () => {
+    const { status, json } = await graphqlRequest(testYoga({ production: false }), {
+      query: "{ node { child { child { __typename } } } }",
+    });
+    expect(status).toBe(200);
+    expect(json).toMatchObject({ data: { node: { child: null } } });
+  });
+});
+
+describe("field suggestions", () => {
+  it("hides suggestions in production, shows them outside", async () => {
+    // Production only runs persisted operations, so the typo query itself is
+    // persisted to reach validation.
+    const typo = "{ helllo }";
+    const hash = createHash("sha256").update(typo, "utf8").digest("hex");
+    const prod = await graphqlRequest(
+      testYoga({ production: true, persistedDocuments: new Map([[hash, typo]]) }),
+      persistedBody(hash),
+    );
+    expect(JSON.stringify(prod.json)).toContain("[Suggestion hidden]");
+    expect(JSON.stringify(prod.json)).not.toContain("Did you mean");
+    const dev = await graphqlRequest(testYoga({ production: false }), { query: typo });
+    expect(JSON.stringify(dev.json)).toContain("Did you mean");
   });
 });
 

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { useOpenTelemetry } from "@envelop/opentelemetry";
+import { EnvelopArmorPlugin } from "@escape.tech/graphql-armor";
 import { useCSRFPrevention } from "@graphql-yoga/plugin-csrf-prevention";
 import { useDisableIntrospection } from "@graphql-yoga/plugin-disable-introspection";
 import { usePersistedOperations } from "@graphql-yoga/plugin-persisted-operations";
@@ -29,9 +30,13 @@ export type GraphqlSecurityOptions = {
 };
 
 /**
- * Yoga plugins for the protection layer. Query depth/alias/cost limits are
- * intentionally absent: graphql-armor requires graphql 16 (see report
- * PROPOSAL); add them here once the orchestrator decides.
+ * Yoga plugins for the protection layer.
+ *
+ * Cost budget: `maxCost` 1000 with armor defaults (scalar 1, object 2,
+ * depth ×1.5). Literal `first`/`last` IntValue arguments multiply their
+ * subtree — variables do NOT (armor limitation), so services still clamp
+ * `first` to 1–100. Provisional: re-measure against the real schema once it
+ * lands and adjust.
  *
  * Deploy the API before the web: production only executes operations from the
  * manifest the API was built with, so a web deployed first would have its new
@@ -45,6 +50,14 @@ export function graphqlSecurityPlugins({
   const production = env.NODE_ENV === "production";
   const plugins: SecurityPluginList = [
     useCSRFPrevention({ requestHeaders: [CSRF_HEADER] }),
+    EnvelopArmorPlugin({
+      maxDepth: { n: 8 },
+      maxAliases: { n: 10 },
+      maxDirectives: { n: 20 },
+      maxTokens: { n: 2000 },
+      costLimit: { maxCost: 1000 },
+      blockFieldSuggestion: { enabled: production },
+    }),
     usePersistedOperations({
       getPersistedOperation: (hash) => persistedDocuments?.get(hash) ?? null,
       allowArbitraryOperations: !production,
