@@ -91,11 +91,16 @@ function ProjectDetailPage() {
     event.preventDefault();
     const title = newTaskTitle.trim();
     if (!title) return;
+    // Clear right away so the next task can be typed while this one saves;
+    // on failure the title comes back unless something new was typed.
+    setNewTaskTitle("");
     createTask.mutate(
       { input: { projectId, title } },
       {
-        onSuccess: () => setNewTaskTitle(""),
-        onError: (error) => toast.error(mutationErrorMessage(error)),
+        onError: (error) => {
+          setNewTaskTitle((current) => current || title);
+          toast.error(mutationErrorMessage(error));
+        },
       },
     );
   }
@@ -314,7 +319,7 @@ function ProjectDetailPage() {
             placeholder="Add a task… press Enter to save"
             value={newTaskTitle}
           />
-          <Button disabled={createTask.isPending || !newTaskTitle.trim()} size="sm" type="submit" variant="ghost">
+          <Button disabled={!newTaskTitle.trim()} size="sm" type="submit" variant="ghost">
             Add
           </Button>
         </form>

@@ -200,6 +200,21 @@ describe("project detail page", () => {
     expect(input).toHaveFocus();
   });
 
+  it("keeps both tasks when the next one is typed while the first is still saving", async () => {
+    const user = userEvent.setup();
+    renderApp("/projects/project-1");
+    const input = await screen.findByPlaceholderText("Add a task… press Enter to save");
+
+    await user.click(input);
+    await user.type(input, "First quick task{Enter}");
+    expect(input).toHaveValue("");
+    await user.type(input, "Second quick task{Enter}");
+
+    expect(await screen.findByText("First quick task")).toBeInTheDocument();
+    expect(await screen.findByText("Second quick task")).toBeInTheDocument();
+    expect(input).toHaveValue("");
+  });
+
   it("updates the URL when switching task filter tabs", async () => {
     const { router } = renderApp("/projects/project-1");
     await screen.findByText("Audit current site content");
