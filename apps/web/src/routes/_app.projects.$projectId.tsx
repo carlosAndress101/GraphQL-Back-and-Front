@@ -178,19 +178,23 @@ function ProjectDetailPage() {
 
       <PageHeader
         title={
-          <InlineEditable
-            defaultEditing={autoEditTitle}
-            label="project name"
-            onSave={(name) => {
-              const trimmed = name.trim();
-              if (!trimmed || trimmed === project.name) return;
-              updateProject.mutate(
-                { id: project.id, input: { name: trimmed } },
-                { onError: (error) => toast.error(mutationErrorMessage(error)) },
-              );
-            }}
-            value={project.name}
-          />
+          // The editable button's aria-label names the action, so the heading
+          // carries the project name itself for heading navigation.
+          <h1 aria-label={project.name}>
+            <InlineEditable
+              defaultEditing={autoEditTitle}
+              label="project name"
+              onSave={(name) => {
+                const trimmed = name.trim();
+                if (!trimmed || trimmed === project.name) return;
+                updateProject.mutate(
+                  { id: project.id, input: { name: trimmed } },
+                  { onError: (error) => toast.error(mutationErrorMessage(error)) },
+                );
+              }}
+              value={project.name}
+            />
+          </h1>
         }
       >
         <PropertyRow label="Progress">

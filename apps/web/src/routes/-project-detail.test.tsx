@@ -168,6 +168,7 @@ describe("project detail page", () => {
     renderApp("/projects/project-1");
     expect(await screen.findByText("Audit current site content")).toBeInTheDocument();
     expect(screen.getByText("Build landing page components")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Website redesign" })).toBeInTheDocument();
   });
 
   it("toggles a task optimistically and rolls back with an error toast on failure", async () => {
