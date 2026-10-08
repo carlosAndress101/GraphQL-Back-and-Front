@@ -23,7 +23,11 @@ The image:
 - Runs as the `node` user.
 - Exposes port 4000.
 - Health check hits `/health/live` using Node's built-in `fetch` (no curl).
-- Starts with `node --import ./src/instrumentation.ts src/server.ts`.
+- Starts with migrations, then the server: `node src/migrate.ts && exec node --import ./src/instrumentation.ts src/server.ts`.
+
+## Migration strategy
+
+The container migrates before serving on every start (`db:migrate:prod` runs the same committed SQL as local `db:migrate`, via `src/migrate.ts`). The process exits non-zero when migrations fail, so a bad migration blocks the deploy instead of serving against a stale schema. This is safe because Dokploy runs a single API instance; with multiple instances, migrations must move to a separate release step run once per deploy.
 
 ## Environment
 
