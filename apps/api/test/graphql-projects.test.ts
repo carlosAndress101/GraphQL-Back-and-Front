@@ -487,4 +487,130 @@ describe("project and task resolvers", () => {
     expect(new Set(pagedIds).size).toBe(pagedIds.length);
     expect(pagedIds).toHaveLength(5);
   });
+
+  it("batches task counts with a constant three SQL queries for 2 and 10 projects", async () => {
+    const app = setupApp();
+    const { cookie } = await signUp(app, "ada@example.test");
+    const headers = { cookie };
+
+    for (let index = 0; index < 10; index += 1) {
+      const createdProject = await graphql(
+        app,
+        { query: `mutation { createProject(input: { name: "Count project ${index}" }) { id } }` },
+        headers,
+      );
+      const projectId = idFrom(createdProject.json, "createProject");
+      const createdTask = await graphql(
+        app,
+        {
+          query: `mutation { createTask(input: { projectId: "${projectId}", title: "Count task ${index}" }) { id } }`,
+        },
+        headers,
+      );
+      expect(createdTask.json).toMatchObject({ data: { createTask: { id: expect.any(String) } } });
+    }
+
+    const testDatabase = database;
+    if (!testDatabase) throw new Error("Test database has not been initialized");
+    const observedCounts: number[] = [];
+    for (const first of [2, 10]) {
+      testDatabase.resetQueryCount();
+      const result = await graphql(
+        app,
+        {
+          query: `query { projects(first: ${first}) { items { id taskCounts { total completed } } } }`,
+        },
+        headers,
+      );
+      expect(result.json).toMatchObject({
+        data: {
+          projects: {
+            items: Array.from({ length: first }, () => ({
+              taskCounts: { total: 1, completed: 0 },
+            })),
+          },
+        },
+      });
+      const queryCount = testDatabase.queryCount();
+      observedCounts.push(queryCount);
+      expect(queryCount).toBe(3);
+    }
+    expect(observedCounts).toEqual([3, 3]);
+  });
+
+  it("batches Task.project lookups with a constant four SQL queries for 2 and 10 tasks", async () => {
+    const app = setupApp();
+    const { cookie } = await signUp(app, "ada@example.test");
+    const headers = { cookie };
+    const createdProject = await graphql(
+      app,
+      { query: 'mutation { createProject(input: { name: "Loader target" }) { id } }' },
+      headers,
+    );
+    const projectId = idFrom(createdProject.json, "createProject");
+
+    for (let index = 0; index < 10; index += 1) {
+      const createdTask = await graphql(
+        app,
+        {
+          query: `mutation { createTask(input: { projectId: "${projectId}", title: "Loader task ${index}" }) { id } }`,
+        },
+        headers,
+      );
+      expect(createdTask.json).toMatchObject({ data: { createTask: { id: expect.any(String) } } });
+    }
+
+    const testDatabase = database;
+    if (!testDatabase) throw new Error("Test database has not been initialized");
+    const observedCounts: number[] = [];
+    for (const first of [2, 10]) {
+      testDatabase.resetQueryCount();
+      const result = await graphql(
+        app,
+        {
+          query: `query { project(id: "${projectId}") { tasks(first: ${first}) { items { project { name } } } } }`,
+        },
+        headers,
+      );
+      expect(result.json).toMatchObject({
+        data: {
+          project: {
+            tasks: {
+              items: Array.from({ length: first }, () => ({ project: { name: "Loader target" } })),
+            },
+          },
+        },
+      });
+      const queryCount = testDatabase.queryCount();
+      observedCounts.push(queryCount);
+      expect(queryCount).toBe(4);
+    }
+    expect(observedCounts).toEqual([4, 4]);
+  });
+
+  it("rejects a deeply nested resolver query before running business resolvers", async () => {
+    const app = setupApp();
+    const { cookie } = await signUp(app, "ada@example.test");
+    const createdProject = await graphql(
+      app,
+      { query: 'mutation { createProject(input: { name: "Depth target" }) { id } }' },
+      { cookie },
+    );
+    const projectId = idFrom(createdProject.json, "createProject");
+    const testDatabase = database;
+    if (!testDatabase) throw new Error("Test database has not been initialized");
+    testDatabase.resetQueryCount();
+
+    const response = await graphql(
+      app,
+      {
+        query: `query { project(id: "${projectId}") { tasks(first: 1) { items { project { tasks(first: 1) { items { project { tasks(first: 1) { items { id } } } } } } } } } }`,
+      },
+      { cookie },
+    );
+
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(response.json)).toContain("Query depth limit of 8 exceeded");
+    expect(testDatabase.queryCount()).toBe(1);
+  });
 });
