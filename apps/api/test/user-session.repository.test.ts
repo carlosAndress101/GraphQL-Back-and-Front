@@ -1,6 +1,5 @@
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { sessions as sessionTable } from "../src/infrastructure/database/schema.ts";
 import { createSessionRepository } from "../src/modules/auth/session.repository.ts";
 import { createUserRepository } from "../src/modules/users/user.repository.ts";
 import { createTestDatabase, type TestDatabase } from "./database.ts";
@@ -24,6 +23,7 @@ function repositories() {
   }
 
   return {
+    client: database.client,
     db: database.db,
     sessions: createSessionRepository(database.db),
     users: createUserRepository(database.db),
@@ -117,7 +117,7 @@ describe("user and session repositories", () => {
   });
 
   it("cascades user deletion to that user's sessions", async () => {
-    const { db, sessions, users } = repositories();
+    const { client, db, sessions, users } = repositories();
     const user = await users.create({ email: "ada@example.test", passwordHash: "hash" });
     const session = await sessions.create({
       idHash: "session-cascaded-with-user",
@@ -127,12 +127,11 @@ describe("user and session repositories", () => {
 
     await db.execute(sql`DELETE FROM users WHERE id = ${user.id}`);
 
-    expect(
-      await db
-        .select({ idHash: sessionTable.idHash })
-        .from(sessionTable)
-        .where(eq(sessionTable.idHash, session.idHash)),
-    ).toEqual([]);
+    const remainingSessions = await client.query<{ id_hash: string }>(
+      "SELECT id_hash FROM sessions WHERE id_hash = $1",
+      [session.idHash],
+    );
+    expect(remainingSessions.rows).toEqual([]);
     expect(
       await sessions.findValid(session.idHash, new Date("2025-04-03T02:01:00.000Z")),
     ).toBeNull();
