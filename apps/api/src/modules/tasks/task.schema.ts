@@ -4,9 +4,19 @@ export const TaskIdSchema = z.uuid();
 
 export const TaskListArgsSchema = z
   .strictObject({
-    first: z.number().int().min(1).max(100).default(20),
-    after: z.string().optional(),
-    completed: z.boolean().optional(),
+    first: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .nullish()
+      .transform((first) => first ?? 20)
+      .default(20),
+    after: z.preprocess((after) => (after === null ? undefined : after), z.string().optional()),
+    completed: z.preprocess(
+      (completed) => (completed === null ? undefined : completed),
+      z.boolean().optional(),
+    ),
   })
   .default(() => ({ first: 20 }));
 
@@ -17,9 +27,14 @@ export const CreateTaskInputSchema = z.strictObject({
 
 export const UpdateTaskInputSchema = z
   .strictObject({
-    title: z.string().trim().min(1).max(200).optional(),
+    title: z.preprocess(
+      (title) => (title === null ? undefined : title),
+      z.string().trim().min(1).max(200).optional(),
+    ),
   })
-  .refine((input) => input.title !== undefined);
+  .refine((input) => input.title !== undefined, {
+    message: "Provide at least one field to update",
+  });
 
 export const SetTaskCompletedInputSchema = z.strictObject({
   id: TaskIdSchema,

@@ -4,6 +4,7 @@ import { createProjectRepository } from "../src/modules/projects/project.reposit
 import {
   CreateProjectInputSchema,
   ProjectListArgsSchema,
+  UpdateProjectInputSchema,
 } from "../src/modules/projects/project.schema.ts";
 import { createProjectService } from "../src/modules/projects/project.service.ts";
 import { createTaskRepository } from "../src/modules/tasks/task.repository.ts";
@@ -49,10 +50,37 @@ describe("project schemas", () => {
       name: "Compiler",
       description: null,
     });
+    expect(CreateProjectInputSchema.parse({ name: "Compiler", description: null })).toEqual(
+      CreateProjectInputSchema.parse({ name: "Compiler" }),
+    );
     expect(ProjectListArgsSchema.parse({ search: "  " })).toEqual({
       first: 20,
       search: undefined,
     });
+    const omittedArgs = ProjectListArgsSchema.parse({});
+    const nullArgs = ProjectListArgsSchema.parse({ first: null, after: null, search: null });
+    expect([nullArgs.first, nullArgs.after, nullArgs.search]).toEqual([
+      omittedArgs.first,
+      omittedArgs.after,
+      omittedArgs.search,
+    ]);
+    expect(ProjectListArgsSchema.parse({ first: null }).first).toBe(20);
+  });
+
+  it("normalizes optional update fields while preserving description clearing", () => {
+    expect(UpdateProjectInputSchema.parse({ name: null, description: "  Notes  " })).toEqual(
+      UpdateProjectInputSchema.parse({ description: "  Notes  " }),
+    );
+    expect(UpdateProjectInputSchema.parse({ description: null })).toEqual({ description: null });
+    expect(UpdateProjectInputSchema.parse({ description: "  " })).toEqual({
+      description: null,
+    });
+    expect(() => UpdateProjectInputSchema.parse({})).toThrowError(
+      "Provide at least one field to update",
+    );
+    expect(() => UpdateProjectInputSchema.parse({ name: null })).toThrowError(
+      "Provide at least one field to update",
+    );
   });
 
   it("enforces project name, description, search, and pagination boundaries", () => {
@@ -105,6 +133,12 @@ describe("project service", () => {
       fieldErrors: { after: ["Invalid cursor"] },
     });
     await expect(service.list(user, {})).resolves.toMatchObject({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(
+      service.list(user, { first: null, after: null, search: null }),
+    ).resolves.toMatchObject({
       items: [],
       nextCursor: null,
     });

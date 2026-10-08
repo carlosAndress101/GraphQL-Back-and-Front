@@ -11,28 +11,43 @@ const ProjectDescriptionSchema = z
 
 export const ProjectListArgsSchema = z
   .strictObject({
-    first: z.number().int().min(1).max(100).default(20),
-    after: z.string().optional(),
-    search: z
-      .string()
-      .trim()
+    first: z
+      .number()
+      .int()
+      .min(1)
       .max(100)
-      .transform((search) => (search === "" ? undefined : search))
-      .optional(),
+      .nullish()
+      .transform((first) => first ?? 20)
+      .default(20),
+    after: z.preprocess((after) => (after === null ? undefined : after), z.string().optional()),
+    search: z.preprocess(
+      (search) => (search === null ? undefined : search),
+      z
+        .string()
+        .trim()
+        .max(100)
+        .transform((search) => (search === "" ? undefined : search))
+        .optional(),
+    ),
   })
   .default(() => ({ first: 20 }));
 
 export const CreateProjectInputSchema = z.strictObject({
   name: z.string().trim().min(1).max(120),
-  description: ProjectDescriptionSchema.optional().transform((description) => description ?? null),
+  description: ProjectDescriptionSchema.nullish().transform((description) => description ?? null),
 });
 
 export const UpdateProjectInputSchema = z
   .strictObject({
-    name: z.string().trim().min(1).max(120).optional(),
+    name: z.preprocess(
+      (name) => (name === null ? undefined : name),
+      z.string().trim().min(1).max(120).optional(),
+    ),
     description: ProjectDescriptionSchema.optional(),
   })
-  .refine((input) => input.name !== undefined || input.description !== undefined);
+  .refine((input) => input.name !== undefined || input.description !== undefined, {
+    message: "Provide at least one field to update",
+  });
 
 export type CreateProjectInput = z.output<typeof CreateProjectInputSchema>;
 export type UpdateProjectInput = z.output<typeof UpdateProjectInputSchema>;
