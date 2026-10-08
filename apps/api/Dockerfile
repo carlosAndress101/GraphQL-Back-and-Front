@@ -34,4 +34,7 @@ WORKDIR /app/apps/api
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT ?? 4000) + '/health/live').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-CMD ["node", "--import", "./src/instrumentation.ts", "src/server.ts"]
+# Migrations run before the server on every container start. Single instance on
+# Dokploy, so no migration race; multiple instances would need a separate
+# release step instead.
+CMD ["sh", "-c", "node src/migrate.ts && exec node --import ./src/instrumentation.ts src/server.ts"]

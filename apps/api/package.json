@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:migrate:prod": "node src/migrate.ts"
   },
   "dependencies": {
     "@envelop/opentelemetry": "^9.2.2",
