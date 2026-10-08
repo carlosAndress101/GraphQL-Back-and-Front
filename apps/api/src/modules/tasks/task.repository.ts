@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gt, inArray, lt, or, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, or, type SQL } from "drizzle-orm";
 import { projects, tasks } from "../../infrastructure/database/schema.ts";
 import type { Database } from "../../infrastructure/database/client.ts";
 import { decodeCursor, encodeCursor } from "../../lib/cursor.ts";
@@ -93,7 +93,7 @@ export function createTaskRepository(db: Database) {
       if (options.after !== undefined) {
         const cursor = decodeCursor(options.after);
         const cursorCondition = or(
-          lt(tasks.createdAt, cursor.createdAt),
+          gt(tasks.createdAt, cursor.createdAt),
           and(eq(tasks.createdAt, cursor.createdAt), gt(tasks.id, cursor.id)),
         );
         if (cursorCondition) {

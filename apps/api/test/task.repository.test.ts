@@ -105,36 +105,73 @@ describe("task repository", () => {
       title: "Second",
     });
     const third = await tasks.create({ projectId: project.id, ownerId: owner.id, title: "Third" });
+    const fourth = await tasks.create({
+      projectId: project.id,
+      ownerId: owner.id,
+      title: "Fourth",
+    });
     const foreign = await tasks.create({
       projectId: foreignProject.id,
       ownerId: other.id,
       title: "Foreign",
     });
-    if (!first || !second || !third || !foreign) {
+    if (!first || !second || !third || !fourth || !foreign) {
       throw new Error("Expected task creation for each project owner");
     }
     await tasks.setCompleted(second.id, owner.id, true);
-    const tiedTimestamp = new Date("2025-04-03T02:01:00.000Z");
-    await client.query("UPDATE tasks SET created_at = $1 WHERE id = ANY($2::uuid[])", [
-      tiedTimestamp,
-      [first.id, second.id, third.id, foreign.id],
+    await client.query("UPDATE tasks SET created_at = $1 WHERE id = $2", [
+      new Date("2025-04-01T02:01:00.000Z"),
+      first.id,
+    ]);
+    await client.query("UPDATE tasks SET created_at = $1 WHERE id = $2", [
+      new Date("2025-04-02T02:01:00.000Z"),
+      second.id,
+    ]);
+    await client.query("UPDATE tasks SET created_at = $1 WHERE id = $2", [
+      new Date("2025-04-02T02:01:00.000Z"),
+      third.id,
+    ]);
+    await client.query("UPDATE tasks SET created_at = $1 WHERE id = $2", [
+      new Date("2025-04-03T02:01:00.000Z"),
+      fourth.id,
+    ]);
+    await client.query("UPDATE tasks SET created_at = $1 WHERE id = $2", [
+      new Date("2025-03-31T02:01:00.000Z"),
+      foreign.id,
     ]);
 
-    const pageOne = await tasks.list({ ownerId: owner.id, projectId: project.id, first: 2 });
-    expect(pageOne.items.map(({ id }) => id)).toEqual(
-      [first.id, second.id, third.id].toSorted().slice(0, 2),
-    );
+    const tiedIds = [second.id, third.id].toSorted();
+    const expectedIds = [first.id, ...tiedIds, fourth.id];
+    const pageOne = await tasks.list({ ownerId: owner.id, projectId: project.id, first: 1 });
+    expect(pageOne.items.map(({ id }) => id)).toEqual(expectedIds.slice(0, 1));
     expect(pageOne.nextCursor).toEqual(expect.any(String));
     const pageTwo = await tasks.list({
       ownerId: owner.id,
       projectId: project.id,
-      first: 2,
+      first: 1,
       after: pageOne.nextCursor ?? undefined,
     });
-    expect(pageTwo.items.map(({ id }) => id)).toEqual(
-      [first.id, second.id, third.id].toSorted().slice(2),
-    );
-    expect(pageTwo.nextCursor).toBeNull();
+    expect(pageTwo.items.map(({ id }) => id)).toEqual(expectedIds.slice(1, 2));
+    expect(pageTwo.nextCursor).toEqual(expect.any(String));
+    const pageThree = await tasks.list({
+      ownerId: owner.id,
+      projectId: project.id,
+      first: 1,
+      after: pageTwo.nextCursor ?? undefined,
+    });
+    expect(pageThree.items.map(({ id }) => id)).toEqual(expectedIds.slice(2, 3));
+    expect(pageThree.nextCursor).toEqual(expect.any(String));
+    const pageFour = await tasks.list({
+      ownerId: owner.id,
+      projectId: project.id,
+      first: 1,
+      after: pageThree.nextCursor ?? undefined,
+    });
+    expect(pageFour.items.map(({ id }) => id)).toEqual(expectedIds.slice(3));
+    expect(pageFour.nextCursor).toBeNull();
+    expect(
+      [pageOne, pageTwo, pageThree, pageFour].flatMap(({ items }) => items.map(({ id }) => id)),
+    ).toEqual(expectedIds);
     expect(
       await tasks.list({ ownerId: owner.id, projectId: project.id, first: 10, completed: true }),
     ).toMatchObject({

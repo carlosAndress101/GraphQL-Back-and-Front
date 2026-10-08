@@ -75,6 +75,7 @@ describe("project repository", () => {
   it("matches search text literally and paginates in stable timestamp-and-ID order", async () => {
     const { client, projects, users } = repositories();
     const owner = await users.create({ email: "ada@example.test", passwordHash: "hash" });
+    const other = await users.create({ email: "grace@example.test", passwordHash: "hash" });
     const first = await projects.create({
       ownerId: owner.id,
       name: "Plan 100%_done\\final",
@@ -90,29 +91,72 @@ describe("project repository", () => {
       name: "Other",
       description: "100%_done\\final",
     });
-    const tiedTimestamp = new Date("2025-04-03T02:01:00.000Z");
+    const fourth = await projects.create({
+      ownerId: owner.id,
+      name: "Later",
+      description: null,
+    });
+    const foreign = await projects.create({
+      ownerId: other.id,
+      name: "Foreign",
+      description: null,
+    });
 
-    await client.query("UPDATE projects SET created_at = $1 WHERE id = ANY($2::uuid[])", [
-      tiedTimestamp,
-      [first.id, second.id, third.id],
+    await client.query("UPDATE projects SET created_at = $1 WHERE id = $2", [
+      new Date("2025-04-01T02:01:00.000Z"),
+      first.id,
+    ]);
+    await client.query("UPDATE projects SET created_at = $1 WHERE id = $2", [
+      new Date("2025-04-02T02:01:00.000Z"),
+      second.id,
+    ]);
+    await client.query("UPDATE projects SET created_at = $1 WHERE id = $2", [
+      new Date("2025-04-02T02:01:00.000Z"),
+      third.id,
+    ]);
+    await client.query("UPDATE projects SET created_at = $1 WHERE id = $2", [
+      new Date("2025-04-03T02:01:00.000Z"),
+      fourth.id,
+    ]);
+    await client.query("UPDATE projects SET created_at = $1 WHERE id = $2", [
+      new Date("2025-03-31T02:01:00.000Z"),
+      foreign.id,
     ]);
 
     const matching = await projects.list({ ownerId: owner.id, first: 10, search: "%_done\\" });
-    expect(matching.items.map(({ id }) => id)).toEqual([first.id, third.id].toSorted());
+    expect(matching.items.map(({ id }) => id)).toEqual([first.id, third.id]);
 
-    const pageOne = await projects.list({ ownerId: owner.id, first: 2 });
-    expect(pageOne.items.map(({ id }) => id)).toEqual(
-      [first.id, second.id, third.id].toSorted().slice(0, 2),
-    );
+    const tiedIds = [second.id, third.id].toSorted();
+    const expectedIds = [first.id, ...tiedIds, fourth.id];
+    const pageOne = await projects.list({ ownerId: owner.id, first: 1 });
+    expect(pageOne.items.map(({ id }) => id)).toEqual(expectedIds.slice(0, 1));
     expect(pageOne.nextCursor).toEqual(expect.any(String));
     const pageTwo = await projects.list({
       ownerId: owner.id,
-      first: 2,
+      first: 1,
       after: pageOne.nextCursor ?? undefined,
     });
-    expect(pageTwo.items.map(({ id }) => id)).toEqual(
-      [first.id, second.id, third.id].toSorted().slice(2),
-    );
-    expect(pageTwo.nextCursor).toBeNull();
+    expect(pageTwo.items.map(({ id }) => id)).toEqual(expectedIds.slice(1, 2));
+    expect(pageTwo.nextCursor).toEqual(expect.any(String));
+    const pageThree = await projects.list({
+      ownerId: owner.id,
+      first: 1,
+      after: pageTwo.nextCursor ?? undefined,
+    });
+    expect(pageThree.items.map(({ id }) => id)).toEqual(expectedIds.slice(2, 3));
+    expect(pageThree.nextCursor).toEqual(expect.any(String));
+    const pageFour = await projects.list({
+      ownerId: owner.id,
+      first: 1,
+      after: pageThree.nextCursor ?? undefined,
+    });
+    expect(pageFour.items.map(({ id }) => id)).toEqual(expectedIds.slice(3));
+    expect(pageFour.nextCursor).toBeNull();
+    expect(
+      [pageOne, pageTwo, pageThree, pageFour].flatMap(({ items }) => items.map(({ id }) => id)),
+    ).toEqual(expectedIds);
+    expect(
+      [pageOne, pageTwo, pageThree, pageFour].flatMap(({ items }) => items.map(({ id }) => id)),
+    ).not.toContain(foreign.id);
   });
 });
