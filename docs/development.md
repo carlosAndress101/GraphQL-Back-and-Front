@@ -47,6 +47,7 @@ The API runs `.ts` directly with Node 24 native type stripping. `node --watch` r
 
 Use `createLogger` from `apps/api/src/infrastructure/logging/logger.ts`. Pass `includeErrorStack: env.NODE_ENV !== "production"` when wiring the logger in `server.ts` so stacks appear in development but never in production. Every request logs one access line (method, path, status, duration in ms, correlated by `requestId`); operation-level fields (operation name, error codes) ride the same child logger.
 
-## TODO
+## Web frontend
 
-- TODO(round 5): frontend development workflow.
+- `pnpm --filter @app/web dev` starts the Vite development server.
+- `pnpm --filter @app/web codegen` regenerates typed GraphQL documents and the persisted-operation manifest in `apps/web/src/gql/`. Run it after changing operations in `apps/web/src/features/{auth,projects,tasks}/operations.ts`, and commit the generated output.
