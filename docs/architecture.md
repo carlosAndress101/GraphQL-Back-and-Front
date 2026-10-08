@@ -14,39 +14,70 @@ GraphQL (SDL) → resolvers → services → repositories → Drizzle → Postgr
 
 ## Request lifecycle
 
-1. HTTP request hits Hono.
-2. Middleware: CORS, secure headers, body limit.
-3. GraphQL Yoga parses the operation (or loads a trusted document in production).
-4. Context is built: `{ db, services, loaders, viewer, cookies }`.
-5. Resolver calls the service; service calls the repository.
-6. Response is masked (errors) and returned.
+```mermaid
+flowchart LR
+    Client --> Hono
+    Hono --> CORS[CORS allowlist]
+    CORS --> RL[per-IP rate limit]
+    RL --> SEC[secure headers + body limit]
+    SEC --> Yoga[GraphQL Yoga]
+    Yoga --> CSRF[CSRF check]
+    CSRF --> Armor[armor limits]
+    Armor --> PO[persisted ops]
+    PO --> CTX[context: viewer, loaders, services]
+    CTX --> Resolvers
+    Resolvers --> Services
+    Services --> Repositories
+    Repositories --> PG[(PostgreSQL)]
+```
+
+1. Hono receives the request with a per-request `requestId` and child logger.
+2. `httpSecurity`: exact-origin CORS (preflights answered here with 204), general per-IP rate limit (300/min), secure headers, 100 KB body limit.
+3. Yoga: CSRF check, armor validation (depth/aliases/directives/tokens/cost), persisted-operation lookup in production, introspection gate.
+4. Context is built per request: `viewer` from the session cookie via `services.auth.authenticate`, per-request DataLoaders, services, cookie collector, client IP, logger.
+5. Resolvers (1–3 lines) call services; services validate (Zod), authorize (ownership), and call repositories.
+6. The response goes back with `Cache-Control: private, no-store`, collected `Set-Cookie` headers, masked errors, and one access log line (method, path, status, duration — no bodies, no cookies).
 
 ## Folder structure
 
 ```
 apps/api/src/
+  app.ts                      # createApp(deps): Hono + middlewares + Yoga
+  server.ts                   # composition root: env, repos, services, shutdown
+  migrate.ts                  # production migration runner
+  instrumentation.ts          # OpenTelemetry bootstrap (node --import)
   graphql/
-    schema.graphql          # SDL: source of truth
-    resolvers.ts            # map Query/Mutation/Project/Task/User
-    context.ts              # { db, services, loaders, viewer, cookies }
-    loaders.ts              # DataLoaders per request
-    errors.ts               # AppError → GraphQLError
-    __generated__/          # graphql-codegen output
+    schema.graphql            # SDL: source of truth
+    resolvers/
+      index.ts                # merged map (auth + scalars; projects/tasks in 3B)
+      auth.ts                 # Query.me, signUp/signIn/signOut
+    scalars.ts                # DateTime scalar
+    context.ts                # GraphQLContext + cookie collector
+    loaders.ts                # DataLoader stubs (real loaders in 3B)
+    errors.ts                 # AppError → GraphQLError mapping
+    security.ts               # Yoga plugins, persisted manifest loader
+    __generated__/            # graphql-codegen output (committed)
+  http/
+    health.ts                 # /health/live, /health/ready
+    security.ts               # CORS, rate limit, headers, body limit
   modules/
-    auth/                   # password, sessions, cookies
-    users/
-    projects/
-    tasks/
+    auth/                     # service, password, tokens, cookie, sessions repo
+    users/                    # user repository
+    projects/                 # service, repository, schemas
+    tasks/                    # service, repository, schemas
   infrastructure/
-    config/env.ts           # Zod-validated environment
-    database/               # schema.ts, client.ts, migrations/
-    logging/logger.ts
-  lib/                      # cursor.ts, rate-limit.ts
-  app.ts                    # createApp(deps): Hono + middlewares + Yoga
-  server.ts                 # startup, connection, graceful shutdown
-  instrumentation.ts        # OpenTelemetry bootstrap (node --import)
-  http/health.ts            # /health/live, /health/ready
+    config/env.ts             # Zod-validated environment (parsed once)
+    database/                 # schema.ts, client.ts, migrations/
+    logging/logger.ts         # structured JSON logger with redaction
+  lib/                        # errors.ts, cursor.ts, rate-limit.ts, client-ip.ts
 ```
+
+## Dependency direction rules
+
+- Inner layers never import outer ones: repositories don't import services, services don't import resolvers, GraphQL never touches the database.
+- `infrastructure/` and `lib/` are imported by anyone but import no domain code (only node builtins, Zod, Drizzle types).
+- Module services may use other modules' repositories (wired explicitly in `server.ts`); repositories never cross-import.
+- Configuration flows down from `env.ts`: only `server.ts`, `migrate.ts`, and `instrumentation.ts` (OTLP switch only) read `process.env`.
 
 ## Cross-cutting
 
@@ -57,5 +88,4 @@ apps/api/src/
 
 ## TODO
 
-- TODO(round 3): `app.ts` composition, error mapping, GraphQL context wiring.
 - TODO(round 4–6): frontend architecture (TanStack Router, Query, design system).

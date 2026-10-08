@@ -25,23 +25,36 @@ The image:
 - Health check hits `/health/live` using Node's built-in `fetch` (no curl).
 - Starts with migrations, then the server: `node src/migrate.ts && exec node --import ./src/instrumentation.ts src/server.ts`.
 
+## Environment
+
+Set in Dokploy (every variable is validated at startup; the process exits on bad config):
+
+- `NODE_ENV=production`
+- `PORT=4000` (or the platform port)
+- `DATABASE_URL` (Neon `main` branch, `sslmode=require`)
+- `CORS_ORIGINS=https://app.<domain>` (https only, enforced)
+- `SESSION_TTL_DAYS=30`
+- `TRUST_PROXY=cloudflare`
+- `LOG_LEVEL=info`
+- `OTEL_EXPORTER_OTLP_ENDPOINT` (optional; unset = no telemetry)
+- `PERSISTED_DOCUMENTS_PATH` (required — fail fast without it)
+
 ## Migration strategy
 
 The container migrates before serving on every start (`db:migrate:prod` runs the same committed SQL as local `db:migrate`, via `src/migrate.ts`). The process exits non-zero when migrations fail, so a bad migration blocks the deploy instead of serving against a stale schema. This is safe because Dokploy runs a single API instance; with multiple instances, migrations must move to a separate release step run once per deploy.
 
-## Environment
+## Health checks
 
-Set in Dokploy:
-
-- `NODE_ENV=production`
-- `DATABASE_URL` (Neon `main` branch, `sslmode=require`)
-- `CORS_ORIGINS=https://app.<domain>`
-- `TRUST_PROXY=cloudflare`
-- `OTEL_EXPORTER_OTLP_ENDPOINT` (optional, e.g. Grafana Cloud)
+- `/health/live` → 200 when the process is alive. Use it for the container/Dokploy health check.
+- `/health/ready` → 200 only when the database ping succeeds, 503 otherwise (no error details). Use it for readiness gates.
 
 ## Deploy order
 
 Deploy the **API before the web**. The API loads `persisted-documents.json` at startup. If the web deploys first with new operations, the API rejects them until it is updated.
+
+## Rollback
+
+Redeploy the previous image tag. Migrations are forward-only SQL with no down path: rolling back code does not roll back schema, so additive, backward-compatible migrations are the rule, and any destructive change needs explicit user approval first.
 
 ## Tunnel
 
