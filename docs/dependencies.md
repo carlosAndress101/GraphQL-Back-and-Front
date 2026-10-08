@@ -67,11 +67,11 @@ pnpm --filter @app/api audit --prod --audit-level high
 pnpm --filter @app/web audit --prod --audit-level high
 ```
 
-`GHSA-7mx3-vvmw-hjmv` (`@graphql-tools/utils` prototype pollution) cleared itself: the graphql-16 tree resolved utils to 12.0.3 (patched), so the CI `--ignore` flag was removed. Remaining below the gate (moderate, tracked): two react-router advisories via GraphiQL and one OpenTelemetry baggage advisory.
+`GHSA-7mx3-vvmw-hjmv` (`@graphql-tools/utils` prototype pollution) cleared itself: the graphql-16 tree resolved utils to 12.0.3 (patched), so the CI `--ignore` flag was removed. Remaining below the gate (moderate, tracked, re-checked 2026-10-08): one OpenTelemetry baggage advisory (`GHSA-8988-4f7v-96qf`, `@opentelemetry/core` <2.8.0) pulled by `@envelop/opentelemetry@9.2.2`, whose latest release still depends on `@opentelemetry/sdk-trace-base` 1.x. The SDK itself runs on `@opentelemetry/core` 2.x; drop the advisory once envelop moves to SDK 2.x. The earlier react-router advisories no longer appear.
 
 ## Release-age exception
 
-`pnpm-workspace.yaml` carries one narrow exception: `minimumReleaseAgeExclude: graphql-yoga@5.24.4`. The official Yoga plugins require `graphql-yoga ^5.24.4`, which was days old when adopted. Temporary — remove once 5.24.4 passes the age gate. No other exclusions.
+`pnpm-workspace.yaml` carries one narrow exception: `minimumReleaseAgeExclude: graphql-yoga@5.24.4`. The official Yoga plugins require `graphql-yoga ^5.24.4`, published 2026-10-08 13:38 UTC, inside pnpm's default one-day release-age gate. Temporary — remove the exclusion after 2026-10-09 13:38 UTC. No other exclusions.
 
 ## Transitive note
 
