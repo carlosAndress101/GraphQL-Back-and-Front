@@ -37,88 +37,79 @@ describe("task repository", () => {
     const { projects, tasks, users } = repositories();
     const owner = await users.create({ email: "ada@example.test", passwordHash: "hash" });
     const other = await users.create({ email: "grace@example.test", passwordHash: "hash" });
-    const project = await projects.create({
-      ownerId: owner.id,
+    const project = await projects.create(owner.id, {
       name: "Compiler",
       description: null,
     });
-    const task = await tasks.create({
+    const task = await tasks.create(owner.id, {
       projectId: project.id,
-      ownerId: owner.id,
       title: "Parse source",
     });
 
     expect(task).not.toBeNull();
     expect(
-      await tasks.create({ projectId: project.id, ownerId: other.id, title: "Unauthorized" }),
+      await tasks.create(other.id, { projectId: project.id, title: "Unauthorized" }),
     ).toBeNull();
-    expect(task && (await tasks.findById(task.id, owner.id))).toEqual(task);
-    expect(task && (await tasks.findById(task.id, other.id))).toBeNull();
-    expect(task && (await tasks.findManyByIds([task.id], owner.id))).toEqual([task]);
-    expect(task && (await tasks.findManyByIds([task.id], other.id))).toEqual([]);
-    expect(await tasks.findManyByIds([], owner.id)).toEqual([]);
+    expect(task && (await tasks.findById(owner.id, task.id))).toEqual(task);
+    expect(task && (await tasks.findById(other.id, task.id))).toBeNull();
+    expect(task && (await tasks.findManyByIds(owner.id, [task.id]))).toEqual([task]);
+    expect(task && (await tasks.findManyByIds(other.id, [task.id]))).toEqual([]);
+    expect(await tasks.findManyByIds(owner.id, [])).toEqual([]);
   });
 
   it("updates completion and deletes only tasks owned through a project", async () => {
     const { projects, tasks, users } = repositories();
     const owner = await users.create({ email: "ada@example.test", passwordHash: "hash" });
     const other = await users.create({ email: "grace@example.test", passwordHash: "hash" });
-    const project = await projects.create({
-      ownerId: owner.id,
+    const project = await projects.create(owner.id, {
       name: "Compiler",
       description: null,
     });
-    const task = await tasks.create({
+    const task = await tasks.create(owner.id, {
       projectId: project.id,
-      ownerId: owner.id,
       title: "Parse source",
     });
     if (!task) {
       throw new Error("Expected task creation for the project owner");
     }
 
-    expect(await tasks.update(task.id, other.id, { title: "Stolen" })).toBeNull();
-    expect(await tasks.setCompleted(task.id, owner.id, true)).toMatchObject({ completed: true });
-    expect(await tasks.delete(task.id, other.id)).toBe(false);
-    expect(await tasks.delete(task.id, owner.id)).toBe(true);
-    expect(await tasks.delete(task.id, owner.id)).toBe(false);
+    expect(await tasks.update(other.id, task.id, { title: "Stolen" })).toBeNull();
+    expect(await tasks.setCompleted(owner.id, task.id, true)).toMatchObject({ completed: true });
+    expect(await tasks.delete(other.id, task.id)).toBe(false);
+    expect(await tasks.delete(owner.id, task.id)).toBe(true);
+    expect(await tasks.delete(owner.id, task.id)).toBe(false);
   });
 
   it("paginates tasks by stable keys and filters by completion and project ownership", async () => {
     const { client, projects, tasks, users } = repositories();
     const owner = await users.create({ email: "ada@example.test", passwordHash: "hash" });
     const other = await users.create({ email: "grace@example.test", passwordHash: "hash" });
-    const project = await projects.create({
-      ownerId: owner.id,
+    const project = await projects.create(owner.id, {
       name: "Compiler",
       description: null,
     });
-    const foreignProject = await projects.create({
-      ownerId: other.id,
+    const foreignProject = await projects.create(other.id, {
       name: "Foreign",
       description: null,
     });
-    const first = await tasks.create({ projectId: project.id, ownerId: owner.id, title: "First" });
-    const second = await tasks.create({
+    const first = await tasks.create(owner.id, { projectId: project.id, title: "First" });
+    const second = await tasks.create(owner.id, {
       projectId: project.id,
-      ownerId: owner.id,
       title: "Second",
     });
-    const third = await tasks.create({ projectId: project.id, ownerId: owner.id, title: "Third" });
-    const fourth = await tasks.create({
+    const third = await tasks.create(owner.id, { projectId: project.id, title: "Third" });
+    const fourth = await tasks.create(owner.id, {
       projectId: project.id,
-      ownerId: owner.id,
       title: "Fourth",
     });
-    const foreign = await tasks.create({
+    const foreign = await tasks.create(other.id, {
       projectId: foreignProject.id,
-      ownerId: other.id,
       title: "Foreign",
     });
     if (!first || !second || !third || !fourth || !foreign) {
       throw new Error("Expected task creation for each project owner");
     }
-    await tasks.setCompleted(second.id, owner.id, true);
+    await tasks.setCompleted(owner.id, second.id, true);
     await client.query("UPDATE tasks SET created_at = $1 WHERE id = $2", [
       new Date("2025-04-01T02:01:00.000Z"),
       first.id,
@@ -142,28 +133,22 @@ describe("task repository", () => {
 
     const tiedIds = [second.id, third.id].toSorted();
     const expectedIds = [first.id, ...tiedIds, fourth.id];
-    const pageOne = await tasks.list({ ownerId: owner.id, projectId: project.id, first: 1 });
+    const pageOne = await tasks.listByProject(owner.id, project.id, { first: 1 });
     expect(pageOne.items.map(({ id }) => id)).toEqual(expectedIds.slice(0, 1));
     expect(pageOne.nextCursor).toEqual(expect.any(String));
-    const pageTwo = await tasks.list({
-      ownerId: owner.id,
-      projectId: project.id,
+    const pageTwo = await tasks.listByProject(owner.id, project.id, {
       first: 1,
       after: pageOne.nextCursor ?? undefined,
     });
     expect(pageTwo.items.map(({ id }) => id)).toEqual(expectedIds.slice(1, 2));
     expect(pageTwo.nextCursor).toEqual(expect.any(String));
-    const pageThree = await tasks.list({
-      ownerId: owner.id,
-      projectId: project.id,
+    const pageThree = await tasks.listByProject(owner.id, project.id, {
       first: 1,
       after: pageTwo.nextCursor ?? undefined,
     });
     expect(pageThree.items.map(({ id }) => id)).toEqual(expectedIds.slice(2, 3));
     expect(pageThree.nextCursor).toEqual(expect.any(String));
-    const pageFour = await tasks.list({
-      ownerId: owner.id,
-      projectId: project.id,
+    const pageFour = await tasks.listByProject(owner.id, project.id, {
       first: 1,
       after: pageThree.nextCursor ?? undefined,
     });
@@ -173,14 +158,12 @@ describe("task repository", () => {
       [pageOne, pageTwo, pageThree, pageFour].flatMap(({ items }) => items.map(({ id }) => id)),
     ).toEqual(expectedIds);
     expect(
-      await tasks.list({ ownerId: owner.id, projectId: project.id, first: 10, completed: true }),
+      await tasks.listByProject(owner.id, project.id, { first: 10, completed: true }),
     ).toMatchObject({
       items: [expect.objectContaining({ id: second.id, completed: true })],
       nextCursor: null,
     });
-    expect(
-      await tasks.list({ ownerId: owner.id, projectId: foreignProject.id, first: 10 }),
-    ).toMatchObject({
+    expect(await tasks.listByProject(owner.id, foreignProject.id, { first: 10 })).toMatchObject({
       items: [],
       nextCursor: null,
     });
@@ -190,51 +173,60 @@ describe("task repository", () => {
     const { client, projects, queryCount, resetQueryCount, tasks, users } = repositories();
     const owner = await users.create({ email: "ada@example.test", passwordHash: "hash" });
     const other = await users.create({ email: "grace@example.test", passwordHash: "hash" });
-    const projectWithTasks = await projects.create({
-      ownerId: owner.id,
+    const projectWithTasks = await projects.create(owner.id, {
       name: "Compiler",
       description: null,
     });
-    const emptyProject = await projects.create({
-      ownerId: owner.id,
+    const secondProject = await projects.create(owner.id, {
+      name: "Second project",
+      description: null,
+    });
+    const emptyProject = await projects.create(owner.id, {
       name: "Empty",
       description: null,
     });
-    const foreignProject = await projects.create({
-      ownerId: other.id,
+    const foreignProject = await projects.create(other.id, {
       name: "Foreign",
       description: null,
     });
-    const first = await tasks.create({
+    const first = await tasks.create(owner.id, {
       projectId: projectWithTasks.id,
-      ownerId: owner.id,
       title: "First",
     });
-    const second = await tasks.create({
+    const second = await tasks.create(owner.id, {
       projectId: projectWithTasks.id,
-      ownerId: owner.id,
       title: "Second",
     });
-    const foreignTask = await tasks.create({
+    const third = await tasks.create(owner.id, {
+      projectId: secondProject.id,
+      title: "Third",
+    });
+    const foreignTask = await tasks.create(other.id, {
       projectId: foreignProject.id,
-      ownerId: other.id,
       title: "Foreign",
     });
-    if (!first || !second || !foreignTask) {
+    if (!first || !second || !third || !foreignTask) {
       throw new Error("Expected task creation for each project owner");
     }
+    await tasks.setCompleted(owner.id, second.id, true);
+    await tasks.setCompleted(owner.id, third.id, true);
 
     resetQueryCount();
     expect(
-      await tasks.countByProjectIds(
-        [projectWithTasks.id, emptyProject.id, foreignProject.id],
-        owner.id,
-      ),
-    ).toEqual([{ projectId: projectWithTasks.id, count: 2 }]);
+      await tasks.countsByProjectIds(owner.id, [
+        projectWithTasks.id,
+        secondProject.id,
+        emptyProject.id,
+        foreignProject.id,
+      ]),
+    ).toEqual([
+      { projectId: projectWithTasks.id, total: 2, completed: 1 },
+      { projectId: secondProject.id, total: 1, completed: 1 },
+    ]);
     expect(queryCount()).toBe(1);
-    expect(await tasks.countByProjectIds([], owner.id)).toEqual([]);
+    expect(await tasks.countsByProjectIds(owner.id, [])).toEqual([]);
 
-    await projects.delete(projectWithTasks.id, owner.id);
+    await projects.delete(owner.id, projectWithTasks.id);
     const remaining = await client.query<{ id: string }>(
       "SELECT id FROM tasks WHERE id = ANY($1::uuid[])",
       [[first.id, second.id]],

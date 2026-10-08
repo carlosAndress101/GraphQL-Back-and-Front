@@ -33,71 +33,64 @@ describe("project repository", () => {
     const { projects, users } = repositories();
     const owner = await users.create({ email: "ada@example.test", passwordHash: "hash" });
     const other = await users.create({ email: "grace@example.test", passwordHash: "hash" });
-    const first = await projects.create({ ownerId: owner.id, name: "Compiler", description: null });
-    const second = await projects.create({
-      ownerId: owner.id,
+    const first = await projects.create(owner.id, { name: "Compiler", description: null });
+    const second = await projects.create(owner.id, {
       name: "Database",
       description: "Storage",
     });
 
-    expect(await projects.findById(first.id, owner.id)).toEqual(first);
-    expect(await projects.findById(first.id, other.id)).toBeNull();
-    expect(await projects.findManyByIds([first.id, second.id], owner.id)).toEqual(
+    expect(await projects.findById(owner.id, first.id)).toEqual(first);
+    expect(await projects.findById(other.id, first.id)).toBeNull();
+    expect(await projects.findManyByIds(owner.id, [first.id, second.id])).toEqual(
       expect.arrayContaining([first, second]),
     );
-    expect(await projects.findManyByIds([first.id], other.id)).toEqual([]);
-    expect(await projects.findManyByIds([], owner.id)).toEqual([]);
+    expect(await projects.findManyByIds(other.id, [first.id])).toEqual([]);
+    expect(await projects.findManyByIds(owner.id, [])).toEqual([]);
   });
 
   it("updates and deletes only the owner's project", async () => {
     const { projects, users } = repositories();
     const owner = await users.create({ email: "ada@example.test", passwordHash: "hash" });
     const other = await users.create({ email: "grace@example.test", passwordHash: "hash" });
-    const project = await projects.create({
-      ownerId: owner.id,
+    const project = await projects.create(owner.id, {
       name: "Compiler",
       description: null,
     });
 
-    expect(await projects.update(project.id, other.id, { name: "Stolen" })).toBeNull();
-    expect(await projects.update(project.id, owner.id, { description: "Updated" })).toMatchObject({
+    expect(await projects.update(other.id, project.id, { name: "Stolen" })).toBeNull();
+    expect(await projects.update(owner.id, project.id, { description: "Updated" })).toMatchObject({
       name: "Compiler",
       description: "Updated",
     });
-    expect(await projects.update(project.id, owner.id, {})).toMatchObject({
+    expect(await projects.update(owner.id, project.id, {})).toMatchObject({
       description: "Updated",
     });
-    expect(await projects.delete(project.id, other.id)).toBe(false);
-    expect(await projects.delete(project.id, owner.id)).toBe(true);
-    expect(await projects.delete(project.id, owner.id)).toBe(false);
+    expect(await projects.delete(other.id, project.id)).toBeNull();
+    expect(await projects.delete(owner.id, project.id)).toBe(project.id);
+    expect(await projects.delete(owner.id, project.id)).toBeNull();
   });
 
   it("matches search text literally and paginates in stable timestamp-and-ID order", async () => {
     const { client, projects, users } = repositories();
     const owner = await users.create({ email: "ada@example.test", passwordHash: "hash" });
     const other = await users.create({ email: "grace@example.test", passwordHash: "hash" });
-    const first = await projects.create({
-      ownerId: owner.id,
+    const first = await projects.create(owner.id, {
       name: "Plan 100%_done\\final",
       description: null,
     });
-    const second = await projects.create({
-      ownerId: owner.id,
+    const second = await projects.create(owner.id, {
       name: "Plan 100ABCdone/final",
       description: null,
     });
-    const third = await projects.create({
-      ownerId: owner.id,
+    const third = await projects.create(owner.id, {
       name: "Other",
       description: "100%_done\\final",
     });
-    const fourth = await projects.create({
-      ownerId: owner.id,
+    const fourth = await projects.create(owner.id, {
       name: "Later",
       description: null,
     });
-    const foreign = await projects.create({
-      ownerId: other.id,
+    const foreign = await projects.create(other.id, {
       name: "Foreign",
       description: null,
     });
@@ -123,30 +116,27 @@ describe("project repository", () => {
       foreign.id,
     ]);
 
-    const matching = await projects.list({ ownerId: owner.id, first: 10, search: "%_done\\" });
+    const matching = await projects.list(owner.id, { first: 10, search: "%_done\\" });
     expect(matching.items.map(({ id }) => id)).toEqual([first.id, third.id]);
 
     const tiedIds = [second.id, third.id].toSorted();
     const expectedIds = [first.id, ...tiedIds, fourth.id];
-    const pageOne = await projects.list({ ownerId: owner.id, first: 1 });
+    const pageOne = await projects.list(owner.id, { first: 1 });
     expect(pageOne.items.map(({ id }) => id)).toEqual(expectedIds.slice(0, 1));
     expect(pageOne.nextCursor).toEqual(expect.any(String));
-    const pageTwo = await projects.list({
-      ownerId: owner.id,
+    const pageTwo = await projects.list(owner.id, {
       first: 1,
       after: pageOne.nextCursor ?? undefined,
     });
     expect(pageTwo.items.map(({ id }) => id)).toEqual(expectedIds.slice(1, 2));
     expect(pageTwo.nextCursor).toEqual(expect.any(String));
-    const pageThree = await projects.list({
-      ownerId: owner.id,
+    const pageThree = await projects.list(owner.id, {
       first: 1,
       after: pageTwo.nextCursor ?? undefined,
     });
     expect(pageThree.items.map(({ id }) => id)).toEqual(expectedIds.slice(2, 3));
     expect(pageThree.nextCursor).toEqual(expect.any(String));
-    const pageFour = await projects.list({
-      ownerId: owner.id,
+    const pageFour = await projects.list(owner.id, {
       first: 1,
       after: pageThree.nextCursor ?? undefined,
     });

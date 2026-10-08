@@ -4,18 +4,16 @@ import type { Database } from "../../infrastructure/database/client.ts";
 import { decodeCursor, encodeCursor } from "../../lib/cursor.ts";
 import type { Project } from "./project.types.ts";
 
-type ProjectInput = Pick<Project, "ownerId" | "name" | "description">;
 type ProjectUpdate = Partial<Pick<Project, "name" | "description">>;
 
 export type ProjectPageOptions = {
-  ownerId: string;
   first: number;
   after?: string | undefined;
   search?: string | undefined;
 };
 
 export function createProjectRepository(db: Database) {
-  async function findById(id: string, ownerId: string): Promise<Project | null> {
+  async function findById(ownerId: string, id: string): Promise<Project | null> {
     const [project] = await db
       .select()
       .from(projects)
@@ -25,8 +23,11 @@ export function createProjectRepository(db: Database) {
   }
 
   return {
-    async create(input: ProjectInput): Promise<Project> {
-      const [project] = await db.insert(projects).values(input).returning();
+    async create(ownerId: string, input: Pick<Project, "name" | "description">): Promise<Project> {
+      const [project] = await db
+        .insert(projects)
+        .values({ ...input, ownerId })
+        .returning();
       if (!project) {
         throw new Error("Project insert did not return a row");
       }
@@ -35,7 +36,7 @@ export function createProjectRepository(db: Database) {
 
     findById,
 
-    async findManyByIds(ids: string[], ownerId: string): Promise<Project[]> {
+    async findManyByIds(ownerId: string, ids: string[]): Promise<Project[]> {
       if (ids.length === 0) {
         return [];
       }
@@ -47,9 +48,10 @@ export function createProjectRepository(db: Database) {
     },
 
     async list(
+      ownerId: string,
       options: ProjectPageOptions,
     ): Promise<{ items: Project[]; nextCursor: string | null }> {
-      const conditions: SQL[] = [eq(projects.ownerId, options.ownerId)];
+      const conditions: SQL[] = [eq(projects.ownerId, ownerId)];
 
       if (options.search !== undefined) {
         const pattern = `%${escapeLikePattern(options.search)}%`;
@@ -90,9 +92,9 @@ export function createProjectRepository(db: Database) {
       };
     },
 
-    async update(id: string, ownerId: string, changes: ProjectUpdate): Promise<Project | null> {
+    async update(ownerId: string, id: string, changes: ProjectUpdate): Promise<Project | null> {
       if (Object.keys(changes).length === 0) {
-        return findById(id, ownerId);
+        return findById(ownerId, id);
       }
 
       const [project] = await db
@@ -103,12 +105,12 @@ export function createProjectRepository(db: Database) {
       return project ?? null;
     },
 
-    async delete(id: string, ownerId: string): Promise<boolean> {
+    async delete(ownerId: string, id: string): Promise<string | null> {
       const deleted = await db
         .delete(projects)
         .where(and(eq(projects.id, id), eq(projects.ownerId, ownerId)))
         .returning({ id: projects.id });
-      return deleted.length > 0;
+      return deleted[0]?.id ?? null;
     },
   };
 }
